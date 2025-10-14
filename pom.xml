@@ -9,7 +9,7 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>org.example</groupId>
-    <artifactId>api_2025_2</artifactId>
+    <artifactId>ProjetoSistemas</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>ProjetoSistemas</name>
     <description>API REST PRW3</description>
@@ -90,5 +90,11 @@
             </plugin>
         </plugins>
     </build>
+
+    <dependency>
+        <groupId>org.flywaydb</groupId>
+        <artifactId>flyway-core</artifactId>
+        <version>10.15.0</version>
+    </dependency>
 
 </project>
