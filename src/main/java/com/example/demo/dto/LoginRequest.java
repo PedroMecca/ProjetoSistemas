@@ -1,3 +1,3 @@
 package com.example.demo.dto;
 
-public record LoginRequest(String email, String senha) {}
+public record LoginRequest(String email, String senha) { }

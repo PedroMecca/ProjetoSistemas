@@ -19,7 +19,7 @@ public class UsuarioDetails implements UserDetails {
         return List.of(new SimpleGrantedAuthority(role));
     }
 
-    @Override public String getPassword() { return usuario.getSenha(); }
+    @Override public String getPassword() { return usuario.getPassword(); }
     @Override public String getUsername() { return usuario.getEmail(); }
     @Override public boolean isAccountNonExpired() { return true; }
     @Override public boolean isAccountNonLocked() { return true; }

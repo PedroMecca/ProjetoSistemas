@@ -1,7 +1,6 @@
 package com.example.demo.controller;
 
 import com.example.demo.dto.AvaliacaoRequest;
-import com.example.demo.dto.FavoritoRequest;
 import com.example.demo.model.Avaliacao;
 import com.example.demo.model.Favorito;
 import com.example.demo.model.Filme;
@@ -44,14 +43,16 @@ public class FilmeController {
         String email = ((UsuarioDetails) principal).getUsername();
         Usuario usuario = usuarioRepo.findByEmail(email).orElseThrow();
         Filme filme = filmeRepo.findById(id).orElseThrow();
-        Avaliacao a = Avaliacao.builder()
-                .id(null)
-                .nota(req.nota())
-                .comentario(req.comentario())
-                .dataAvaliacao(LocalDate.now())
-                .usuarioComum(usuario)
-                .filme(filme)
-                .build();
+
+        Avaliacao a = new Avaliacao();
+        a.setId(null);
+        // converte BigDecimal -> int (use intValueExact() se quiser garantir sem perda)
+        a.setNota(req.nota() != null ? req.nota().intValue() : null);
+        a.setComentario(req.comentario());
+        a.setDataAvaliacao(LocalDate.now());
+        a.setUsuarioComum(usuario);
+        a.setFilme(filme);
+
         avRepo.save(a);
         return ResponseEntity.ok(a);
     }
@@ -62,13 +63,13 @@ public class FilmeController {
         String email = ((UsuarioDetails) principal).getUsername();
         Usuario usuario = usuarioRepo.findByEmail(email).orElseThrow();
         Filme filme = filmeRepo.findById(id).orElseThrow();
-        Favorito f = Favorito.builder()
-                .id(null)
-                .usuarioComum(usuario)
-                .filme(filme)
-                .estado(usuario.getEstado())
-                .dataFavorito(LocalDate.now())
-                .build();
+
+        Favorito f = new Favorito();
+        f.setId(null);
+        f.setUsuarioComum(usuario);
+        f.setFilme(filme);
+        f.setDataFavorito(LocalDate.now());
+
         favRepo.save(f);
         return ResponseEntity.ok(f);
     }
