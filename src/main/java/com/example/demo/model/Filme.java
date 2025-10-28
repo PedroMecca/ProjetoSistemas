@@ -1,33 +1,36 @@
 package com.example.demo.model;
 
 import jakarta.persistence.*;
-import lombok.*;
 
 @Entity
 @Table(name = "filme")
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
 public class Filme {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id_filme")
-    private Integer id;
+    private Long id;
 
-    @Column(name = "titulo", length = 150, nullable = false)
     private String titulo;
 
-    @Column(name = "descricao", columnDefinition = "TEXT")
-    private String descricao;
+    public Filme() {}
 
-    @Column(name = "genero", length = 50)
-    private String genero;
+    public Filme(Long id, String titulo) {
+        this.id = id;
+        this.titulo = titulo;
+    }
 
-    @Column(name = "ano_lancamento")
-    private Integer anoLancamento;
+    public Long getId() {
+        return id;
+    }
 
-    @ManyToOne(optional = false)
-    @JoinColumn(name = "id_usuario_admin")
-    private Usuario usuarioAdmin;
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public String getTitulo() {
+        return titulo;
+    }
+
+    public void setTitulo(String titulo) {
+        this.titulo = titulo;
+    }
 }

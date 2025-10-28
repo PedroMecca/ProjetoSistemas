@@ -10,6 +10,11 @@ import com.example.demo.repository.FavoritoRepository;
 import com.example.demo.repository.FilmeRepository;
 import com.example.demo.repository.UsuarioRepository;
 import com.example.demo.security.UsuarioDetails;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.ResponseEntity;
@@ -46,7 +51,7 @@ public class FilmeController {
 
         Avaliacao a = new Avaliacao();
         a.setId(null);
-        // converte BigDecimal -> int (use intValueExact() se quiser garantir sem perda)
+
         a.setNota(req.nota() != null ? req.nota().intValue() : null);
         a.setComentario(req.comentario());
         a.setDataAvaliacao(LocalDate.now());
@@ -72,5 +77,20 @@ public class FilmeController {
 
         favRepo.save(f);
         return ResponseEntity.ok(f);
+    }
+
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> criarFilme(@RequestBody @Valid com.example.demo.dto.FilmeRequest req) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() ||
+                auth.getAuthorities().stream().map(GrantedAuthority::getAuthority)
+                        .noneMatch(a -> a.equals("ROLE_ADMIN") || a.equals("ADMIN"))) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
+        Filme f = new Filme();
+        f.setTitulo(req.titulo());
+        Filme salvo = filmeRepo.save(f);
+        return ResponseEntity.status(HttpStatus.CREATED).body(salvo);
     }
 }

@@ -9,9 +9,5 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 public class Main {
     public static void main(String[] args) {
         SpringApplication.run(Main.class, args);
-        PasswordEncoder encoder = new BCryptPasswordEncoder();
-        String senhaCodificada = encoder.encode("@123"); // exemplo
-        System.out.println(senhaCodificada);
-
     }
 }
