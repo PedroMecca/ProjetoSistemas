@@ -2,6 +2,7 @@ package com.example.demo.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 @Entity
 @Table(name = "usuario")
@@ -21,6 +22,9 @@ public class Usuario {
     @Column(name = "email", length = 100, nullable = false, unique = true)
     private String email;
 
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     @Column(name = "senha", length = 255, nullable = false)
     private String senha;
 
@@ -28,7 +32,9 @@ public class Usuario {
     @Column(name = "tipo_usuario", nullable = false)
     private TipoUsuario tipoUsuario;
 
-    @ManyToOne
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_estado")
     private Estado estado;
 }

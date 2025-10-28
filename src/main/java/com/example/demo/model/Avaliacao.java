@@ -17,7 +17,7 @@ public class Avaliacao {
     @Column(name = "id_avaliacao")
     private Integer id;
 
-    @Column(name = "nota", precision = 2, scale = 1)
+    @Column(name = "nota", precision = 3, scale = 1)
     private BigDecimal nota;
 
     @Column(name = "comentario", columnDefinition = "TEXT")
@@ -26,11 +26,11 @@ public class Avaliacao {
     @Column(name = "data_avaliacao", nullable = false)
     private LocalDate dataAvaliacao;
 
-    @ManyToOne(optional = false)
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "id_usuario_comum")
     private Usuario usuarioComum;
 
-    @ManyToOne(optional = false)
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "id_filme")
     private Filme filme;
 }

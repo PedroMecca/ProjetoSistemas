@@ -16,18 +16,17 @@ public class Favorito {
     @Column(name = "id_favorito")
     private Integer id;
 
-    @ManyToOne(optional = false)
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "id_usuario_comum")
     private Usuario usuarioComum;
 
-    @ManyToOne(optional = false)
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "id_filme")
     private Filme filme;
 
-    @ManyToOne(optional = false)
-    @JoinColumn(name = "id_estado")
-    private Estado estado;
+    @Column(name = "estado")
+    private String estado;
 
-    @Column(name = "data_favorito")
+    @Column(name = "data_favorito", nullable = false)
     private LocalDate dataFavorito;
 }
