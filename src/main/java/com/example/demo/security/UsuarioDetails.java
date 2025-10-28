@@ -15,9 +15,10 @@ public class UsuarioDetails implements UserDetails {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        String role = usuario.getTipoUsuario() == TipoUsuario.ADMIN ? "ROLE_ADMIN" : "ROLE_COMUM";
+        String role = "ROLE_" + usuario.getTipoUsuario().name();
         return List.of(new SimpleGrantedAuthority(role));
     }
+
 
     @Override public String getPassword() { return usuario.getPassword(); }
     @Override public String getUsername() { return usuario.getEmail(); }
