@@ -1,10 +1,13 @@
 // src/main/java/com/example/demo/model/Usuario.java
 package com.example.demo.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 
 @Entity
 @Table(name = "usuario")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Usuario {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -15,10 +18,12 @@ public class Usuario {
     @Column(unique = true, nullable = false)
     private String email;
 
+    @JsonIgnore          // 👈 não serializar senha
     @Column(nullable = false)
     private String senha;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "tipo_usuario")
     private TipoUsuario tipoUsuario;
 
     public Usuario() {}
@@ -41,8 +46,10 @@ public class Usuario {
     public String getSenha() { return senha; }
     public void setSenha(String senha) { this.senha = senha; }
 
-    // alias esperado pelo Spring Security UserDetails
-    public String getPassword() { return this.senha; }
+    @JsonIgnore
+    public String getPassword() {
+        return this.senha;
+    }
 
     public TipoUsuario getTipoUsuario() { return tipoUsuario; }
     public void setTipoUsuario(TipoUsuario tipoUsuario) { this.tipoUsuario = tipoUsuario; }

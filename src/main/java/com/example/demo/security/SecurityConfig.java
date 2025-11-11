@@ -2,34 +2,68 @@ package com.example.demo.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.security.config.http.SessionCreationPolicy;
 
 @Configuration
+@EnableMethodSecurity
 public class SecurityConfig {
+
+    private final JwtUtil jwtUtil;
+    private final UsuarioDetailsService usuarioDetailsService;
+
+    public SecurityConfig(JwtUtil jwtUtil, UsuarioDetailsService usuarioDetailsService) {
+        this.jwtUtil = jwtUtil;
+        this.usuarioDetailsService = usuarioDetailsService;
+    }
+
+    @Bean
+    public JwtAuthenticationFilter jwtAuthenticationFilter() {
+        return new JwtAuthenticationFilter(jwtUtil, usuarioDetailsService);
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .csrf(csrf -> csrf.disable()) // desabilita CSRF para APIs REST
+                .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(new AntPathRequestMatcher("/h2-console/**")).permitAll() // libera H2
-                        .requestMatchers("/login/**").permitAll() // libera login/registro
-                        .anyRequest().authenticated() // protege outras rotas
+                        .requestMatchers(new AntPathRequestMatcher("/h2-console/**")).permitAll()
+                        .requestMatchers("/login/**").permitAll()
+
+                        .requestMatchers(HttpMethod.GET, "/filmes/**")
+                        .hasAnyRole("ADMIN", "COMUM")
+
+                        // Avaliar e favoritar – ADMIN ou COMUM
+                        .requestMatchers(HttpMethod.POST, "/filmes/*/avaliacoes")
+                        .hasAnyRole("ADMIN", "COMUM")
+                        .requestMatchers(HttpMethod.POST, "/filmes/*/favoritos")
+                        .hasAnyRole("ADMIN", "COMUM")
+
+                        // Criar filme – só ADMIN
+                        .requestMatchers(HttpMethod.POST, "/filmes")
+                        .hasRole("ADMIN")
+
+                        .anyRequest().authenticated()
                 )
                 .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
-                .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS) // sem sessão, uso JWT
-                );
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+                .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
+
+
 
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
@@ -41,3 +75,4 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 }
+
