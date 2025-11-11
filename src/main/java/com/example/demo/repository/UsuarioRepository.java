@@ -1,3 +1,4 @@
+// src/main/java/com/example/demo/repository/UsuarioRepository.java
 package com.example.demo.repository;
 
 import com.example.demo.model.Usuario;
@@ -7,4 +8,6 @@ import java.util.Optional;
 
 public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
     Optional<Usuario> findByEmail(String email);
+
+    boolean existsByEmail(String email);
 }

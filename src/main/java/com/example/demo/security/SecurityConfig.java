@@ -31,6 +31,8 @@ public class SecurityConfig {
         return new JwtAuthenticationFilter(jwtUtil, usuarioDetailsService);
     }
 
+    // src/main/java/com/example/demo/security/SecurityConfig.java
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
@@ -39,16 +41,16 @@ public class SecurityConfig {
                         .requestMatchers(new AntPathRequestMatcher("/h2-console/**")).permitAll()
                         .requestMatchers("/login/**").permitAll()
 
+                        .requestMatchers(HttpMethod.POST, "/usuarios").permitAll()
+
                         .requestMatchers(HttpMethod.GET, "/filmes/**")
                         .hasAnyRole("ADMIN", "COMUM")
 
-                        // Avaliar e favoritar – ADMIN ou COMUM
                         .requestMatchers(HttpMethod.POST, "/filmes/*/avaliacoes")
                         .hasAnyRole("ADMIN", "COMUM")
                         .requestMatchers(HttpMethod.POST, "/filmes/*/favoritos")
                         .hasAnyRole("ADMIN", "COMUM")
 
-                        // Criar filme – só ADMIN
                         .requestMatchers(HttpMethod.POST, "/filmes")
                         .hasRole("ADMIN")
 
@@ -62,6 +64,7 @@ public class SecurityConfig {
 
         return http.build();
     }
+
 
 
 
