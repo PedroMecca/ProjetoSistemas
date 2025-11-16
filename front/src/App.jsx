@@ -94,9 +94,18 @@ function App() {
         body: JSON.stringify({ nome, email, senha, tipoUsuario }),
       });
 
+      // resp.ok é true para qualquer 2xx (200, 201, 204...)
       if (!res.ok) {
-        throw new Error("Erro ao registrar usuário");
+        if (res.status === 400) {
+          // por exemplo: e-mail já cadastrado
+          throw new Error("E-mail já cadastrado.");
+        }
+        throw new Error("Erro ao registrar usuário.");
       }
+
+      // se quiser, pode ler o usuário criado:
+      // const userCreated = await res.json();
+      // console.log("Usuário criado:", userCreated);
 
       setMensagem("Conta criada! Fazendo login...");
 
@@ -119,14 +128,17 @@ function App() {
       localStorage.setItem("userEmail", email);
 
       setMensagem("Conta criada e login realizado!");
-      setMode("login");
+      setMode("login"); // aqui você decide: manter "login" ou já deixar logado
     } catch (err) {
       console.error(err);
-      setMensagem("Erro ao criar conta. Tente outro e-mail.");
+      // se a mensagem for mais específica, usa ela;
+      // se não, usa o texto padrão
+      setMensagem(err.message || "Erro ao criar conta. Tente outro e-mail.");
     } finally {
       setLoading(false);
     }
   }
+
 
   function handleLogout() {
     setToken(null);

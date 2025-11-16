@@ -14,6 +14,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/usuarios")
+@CrossOrigin(origins = "http://localhost:5173")
 public class UsuarioController {
 
     private final UsuarioRepository usuarioRepo;
@@ -25,8 +26,7 @@ public class UsuarioController {
         this.passwordEncoder = passwordEncoder;
     }
 
-    // CADASTRO DE NOVO USUÁRIO (sempre COMUM)
-    @PostMapping
+    @PostMapping("/registro")
     @ResponseStatus(HttpStatus.CREATED)
     public UsuarioResponse registrar(@RequestBody @Valid UsuarioRequest req) {
 
@@ -41,7 +41,7 @@ public class UsuarioController {
         u.setNome(req.nome());
         u.setEmail(req.email());
         u.setSenha(passwordEncoder.encode(req.senha()));
-        u.setTipoUsuario(TipoUsuario.COMUM); // 👈 cadastro público sempre COMUM
+        u.setTipoUsuario(TipoUsuario.COMUM);
 
         Usuario salvo = usuarioRepo.save(u);
 

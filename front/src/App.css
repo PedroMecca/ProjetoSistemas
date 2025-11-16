@@ -12,6 +12,13 @@ body {
   min-height: 100vh;
 }
 
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
 .app-container {
   min-height: 100vh;
   display: flex;
@@ -19,6 +26,7 @@ body {
   justify-content: center;
   padding: 24px;
 }
+
 
 .card {
   background: rgba(15, 23, 42, 0.95);
