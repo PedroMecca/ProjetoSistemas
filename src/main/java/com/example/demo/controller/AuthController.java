@@ -3,6 +3,7 @@ package com.example.demo.controller;
 import com.example.demo.dto.LoginRequest;
 import com.example.demo.dto.JwtResponse;
 import com.example.demo.security.JwtUtil;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -22,7 +23,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<JwtResponse> login(@RequestBody LoginRequest req) {
+    public ResponseEntity<JwtResponse> login(@RequestBody @Valid LoginRequest req) {
         try {
             var token = new UsernamePasswordAuthenticationToken(req.email(), req.senha());
             authManager.authenticate(token);

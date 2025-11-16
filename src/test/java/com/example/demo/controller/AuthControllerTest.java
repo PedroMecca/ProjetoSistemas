@@ -43,8 +43,6 @@ class AuthControllerTest {
     void loginComSucesso() throws Exception {
         LoginRequest req = new LoginRequest("pedro@example.com", "senha123");
 
-        // authManager.authenticate(...) não precisa retornar nada específico,
-        // porque o controller ignora o retorno.
         when(jwtUtil.generateToken("pedro@example.com")).thenReturn("fake-jwt-token");
 
         mockMvc.perform(

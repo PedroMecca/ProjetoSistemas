@@ -67,9 +67,6 @@ class FilmeControllerTest {
         SecurityContextHolder.clearContext();
     }
 
-    // ----------------------------------------------------
-    // Helper para simular usuário autenticado
-    // ----------------------------------------------------
     private void autenticarComo(Usuario usuario) {
         UsuarioDetails details = new UsuarioDetails(usuario);
         var auth = new UsernamePasswordAuthenticationToken(details, null, details.getAuthorities());
@@ -284,4 +281,91 @@ class FilmeControllerTest {
                 .andExpect(jsonPath("$.titulo").value("Novo Filme"))
                 .andExpect(jsonPath("$.adminNome").value("Admin"));
     }
+
+    @Test
+    @DisplayName("Deve retornar 404 ao tentar avaliar filme inexistente")
+    void avaliarFilmeInexistente() throws Exception {
+        Usuario usuario = new Usuario();
+        usuario.setNome("Pedro");
+        usuario.setEmail("pedro@example.com");
+        usuario.setTipoUsuario(TipoUsuario.COMUM);
+
+        autenticarComo(usuario);
+
+        when(usuarioRepo.findByEmail("pedro@example.com")).thenReturn(Optional.of(usuario));
+        when(filmeRepo.findById(999L)).thenReturn(Optional.empty());
+
+        String json = """
+            {
+              "nota": 4,
+              "comentario": "Tentando avaliar filme inexistente"
+            }
+            """;
+
+        mockMvc.perform(
+                        post("/filmes/999/avaliacoes")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json)
+                )
+                .andExpect(status().isNotFound())
+                .andExpect(status().reason("Filme não encontrado"));
+
+        verify(avRepo, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Deve retornar 404 ao tentar favoritar filme inexistente")
+    void favoritarFilmeInexistente() throws Exception {
+        Usuario usuario = new Usuario();
+        usuario.setNome("Pedro");
+        usuario.setEmail("pedro@example.com");
+        usuario.setTipoUsuario(TipoUsuario.COMUM);
+
+        autenticarComo(usuario);
+
+        when(usuarioRepo.findByEmail("pedro@example.com")).thenReturn(Optional.of(usuario));
+        when(filmeRepo.findById(999L)).thenReturn(Optional.empty());
+
+        mockMvc.perform(post("/filmes/999/favoritos"))
+                .andExpect(status().isNotFound())
+                .andExpect(status().reason("Filme não encontrado"));
+
+        verify(favRepo, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Ao criar filme, deve usar o ADMIN autenticado como adminCriador")
+    void criarFilmeUsaAdminAutenticadoComoCriador() throws Exception {
+        Usuario admin = new Usuario();
+        admin.setNome("Admin");
+        admin.setEmail("admin@example.com");
+        admin.setTipoUsuario(TipoUsuario.ADMIN);
+
+        autenticarComo(admin);
+
+        Filme salvo = new Filme();
+        salvo.setId(456L);
+        salvo.setTitulo("Filme do Admin");
+        salvo.setAdminCriador(admin);
+
+        when(filmeRepo.save(any(Filme.class))).thenReturn(salvo);
+
+        FilmeRequest req = new FilmeRequest("Filme do Admin");
+
+        mockMvc.perform(
+                        post("/filmes")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(req))
+                )
+                .andExpect(status().isCreated());
+
+        ArgumentCaptor<Filme> captor = ArgumentCaptor.forClass(Filme.class);
+        verify(filmeRepo).save(captor.capture());
+        Filme enviado = captor.getValue();
+
+        assertThat(enviado.getTitulo()).isEqualTo("Filme do Admin");
+        assertThat(enviado.getAdminCriador()).isEqualTo(admin);
+    }
+
+
 }

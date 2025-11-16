@@ -28,9 +28,6 @@ public class UsuarioController {
         this.passwordEncoder = passwordEncoder;
     }
 
-    // ----------------------------------------------------
-    // REGISTRO (público) - sempre cria usuário COMUM
-    // ----------------------------------------------------
     @PostMapping("/registro")
     @ResponseStatus(HttpStatus.CREATED)
     public UsuarioResponse registrar(@RequestBody @Valid UsuarioRequest req) {
@@ -61,7 +58,6 @@ public class UsuarioController {
     @GetMapping("/me")
     public UsuarioResponse me(@AuthenticationPrincipal UsuarioDetails userDetails) {
         if (userDetails == null) {
-            // só por segurança, em teoria nunca cai aqui se a rota estiver protegida
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Não autenticado");
         }
 
