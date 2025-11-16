@@ -1,6 +1,7 @@
 package com.example.demo.controller;
 
 import com.example.demo.dto.AvaliacaoRequest;
+import com.example.demo.dto.AvaliacaoResponse;
 import com.example.demo.dto.FilmeRequest;
 import com.example.demo.dto.FilmeResponse;
 import com.example.demo.model.Avaliacao;
@@ -20,6 +21,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -52,6 +54,8 @@ public class FilmeController {
                 .map(f -> new FilmeResponse(
                         f.getId(),
                         f.getTitulo(),
+                        // se FilmeResponse tiver mais campos (categoria, ano, média),
+                        // você pode ajustar aqui depois
                         f.getAdminCriador().getNome(),
                         f.getAdminCriador().getEmail(),
                         f.getAdminCriador().getTipoUsuario().name()
@@ -61,6 +65,9 @@ public class FilmeController {
         return ResponseEntity.ok(filmes);
     }
 
+    // ----------------------------------------------------
+    // CRIAR AVALIAÇÃO (ADMIN + COMUM)
+    // ----------------------------------------------------
     @PostMapping("/{id}/avaliacoes")
     public ResponseEntity<Avaliacao> avaliar(@PathVariable Long id,
                                              @RequestBody @Valid AvaliacaoRequest req) {
@@ -81,6 +88,28 @@ public class FilmeController {
 
         Avaliacao salvo = avRepo.save(a);
         return ResponseEntity.ok(salvo);
+    }
+
+    // ----------------------------------------------------
+    // LISTAR AVALIAÇÕES DE UM FILME (para painel ADMIN)
+    // ----------------------------------------------------
+    @GetMapping("/{id}/avaliacoes")
+    // se quiser restringir só a admin:
+    // @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<AvaliacaoResponse>> listarAvaliacoes(@PathVariable Long id) {
+
+        Filme filme = filmeRepo.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Filme não encontrado"
+                ));
+
+        List<AvaliacaoResponse> avaliacoes = avRepo.findByFilmeId(filme.getId())
+                .stream()
+                .map(AvaliacaoResponse::fromEntity)
+                .toList();
+
+        return ResponseEntity.ok(avaliacoes);
     }
 
     // ----------------------------------------------------
@@ -117,6 +146,9 @@ public class FilmeController {
 
         Filme f = new Filme();
         f.setTitulo(req.titulo());
+        // se tiver categoria/ano no Filme, pode setar aqui também
+        // f.setCategoria(req.categoria());
+        // f.setAno(req.ano());
         f.setAdminCriador(admin);
 
         Filme salvo = filmeRepo.save(f);
