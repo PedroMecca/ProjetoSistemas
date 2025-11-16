@@ -5,26 +5,74 @@ const API_BASE = "http://localhost:8080";
 
 function App() {
   const [mode, setMode] = useState("login"); // "login" | "register"
+
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
-  const [tipoUsuario] = useState("COMUM"); // vamos criar sempre usuário comum
+  const [tipoUsuario] = useState("COMUM"); // cadastro público sempre COMUM
 
   const [token, setToken] = useState(localStorage.getItem("token") || null);
-  const [userEmail, setUserEmail] = useState(localStorage.getItem("userEmail") || null);
+  const [userEmail, setUserEmail] = useState(
+    localStorage.getItem("userEmail") || null
+  );
+  const [userName, setUserName] = useState(
+    localStorage.getItem("userName") || null
+  );
+  const [userRole, setUserRole] = useState(
+    localStorage.getItem("userRole") || null
+  ); // "ADMIN" | "COMUM"
 
   const [filmes, setFilmes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [mensagem, setMensagem] = useState("");
 
-  // Se tiver token, busca filmes automaticamente
-  useEffect(() => {
-    if (token) {
-      carregarFilmes();
+  // filtro de filmes
+  const [filtro, setFiltro] = useState("");
+
+  // admin: cadastro de novo filme
+  const [novoTitulo, setNovoTitulo] = useState("");
+  const [novoCategoria, setNovoCategoria] = useState("");
+  const [novoAno, setNovoAno] = useState("");
+
+  // admin: painel de avaliações
+  const [filmeSelecionado, setFilmeSelecionado] = useState(null);
+  const [avaliacoes, setAvaliacoes] = useState([]);
+
+  // ----------------------------------------------------
+  // Helpers
+  // ----------------------------------------------------
+
+  async function carregarPerfil(tokenParam) {
+    const jwt = tokenParam || token;
+    if (!jwt) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/usuarios/me`, {
+        headers: {
+          Authorization: `Bearer ${jwt}`,
+        },
+      });
+
+      if (!res.ok) {
+        throw new Error("Não foi possível carregar o perfil.");
+      }
+
+      const data = await res.json();
+      setUserEmail(data.email);
+      setUserName(data.nome);
+      setUserRole(data.tipoUsuario);
+
+      localStorage.setItem("userEmail", data.email);
+      localStorage.setItem("userName", data.nome);
+      localStorage.setItem("userRole", data.tipoUsuario);
+    } catch (err) {
+      console.error("Erro ao carregar perfil:", err);
     }
-  }, [token]);
+  }
 
   async function carregarFilmes() {
+    if (!token) return;
+
     try {
       setLoading(true);
       setMensagem("");
@@ -49,6 +97,45 @@ function App() {
     }
   }
 
+  async function carregarAvaliacoes(filme) {
+    if (!token) return;
+
+    try {
+      setLoading(true);
+      setMensagem("");
+      setFilmeSelecionado(filme);
+      setAvaliacoes([]);
+
+      const res = await fetch(`${API_BASE}/filmes/${filme.id}/avaliacoes`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        throw new Error("Falha ao carregar avaliações");
+      }
+
+      const data = await res.json();
+      setAvaliacoes(data);
+    } catch (err) {
+      console.error(err);
+      setMensagem("Erro ao carregar avaliações do filme.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (token) {
+      carregarPerfil(token);
+      carregarFilmes();
+    }
+  }, [token]);
+
+  // ----------------------------------------------------
+  // Auth: login / registro
+  // ----------------------------------------------------
   async function handleLogin(e) {
     e.preventDefault();
     setMensagem("");
@@ -67,10 +154,9 @@ function App() {
 
       const data = await res.json(); // { token: "..." }
       setToken(data.token);
-      setUserEmail(email);
-
       localStorage.setItem("token", data.token);
-      localStorage.setItem("userEmail", email);
+
+      await carregarPerfil(data.token);
 
       setMensagem("Login realizado com sucesso!");
     } catch (err) {
@@ -94,22 +180,16 @@ function App() {
         body: JSON.stringify({ nome, email, senha, tipoUsuario }),
       });
 
-      // resp.ok é true para qualquer 2xx (200, 201, 204...)
       if (!res.ok) {
         if (res.status === 400) {
-          // por exemplo: e-mail já cadastrado
           throw new Error("E-mail já cadastrado.");
         }
         throw new Error("Erro ao registrar usuário.");
       }
 
-      // se quiser, pode ler o usuário criado:
-      // const userCreated = await res.json();
-      // console.log("Usuário criado:", userCreated);
-
       setMensagem("Conta criada! Fazendo login...");
 
-      // 2) faz login automaticamente
+      // 2) login automático
       const loginRes = await fetch(`${API_BASE}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -122,33 +202,38 @@ function App() {
 
       const loginData = await loginRes.json();
       setToken(loginData.token);
-      setUserEmail(email);
-
       localStorage.setItem("token", loginData.token);
-      localStorage.setItem("userEmail", email);
+
+      await carregarPerfil(loginData.token);
 
       setMensagem("Conta criada e login realizado!");
-      setMode("login"); // aqui você decide: manter "login" ou já deixar logado
+      // setMode("login"); // nem precisa, já está logado pelo token
     } catch (err) {
       console.error(err);
-      // se a mensagem for mais específica, usa ela;
-      // se não, usa o texto padrão
       setMensagem(err.message || "Erro ao criar conta. Tente outro e-mail.");
     } finally {
       setLoading(false);
     }
   }
 
-
   function handleLogout() {
     setToken(null);
     setUserEmail(null);
+    setUserName(null);
+    setUserRole(null);
     setFilmes([]);
+    setAvaliacoes([]);
+    setFilmeSelecionado(null);
     localStorage.removeItem("token");
     localStorage.removeItem("userEmail");
+    localStorage.removeItem("userName");
+    localStorage.removeItem("userRole");
     setMensagem("Você saiu da conta.");
   }
 
+  // ----------------------------------------------------
+  // Ações de filme (usuário comum e admin)
+  // ----------------------------------------------------
   async function handleAvaliar(filmeId) {
     const notaStr = prompt("Informe a nota (0 a 5):");
     if (notaStr === null) return;
@@ -178,9 +263,10 @@ function App() {
         throw new Error("Erro ao enviar avaliação");
       }
 
-      const data = await res.json();
-      console.log("Avaliação salva:", data);
+      await res.json();
       setMensagem("Avaliação enviada com sucesso!");
+
+      carregarFilmes();
     } catch (err) {
       console.error(err);
       setMensagem("Erro ao avaliar o filme.");
@@ -189,7 +275,65 @@ function App() {
     }
   }
 
-  // Se não tem token → mostra tela de login/cadastro
+  async function handleCriarFilme(e) {
+    e.preventDefault();
+    if (!novoTitulo.trim()) {
+      alert("Informe o título do filme.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setMensagem("");
+
+      const body = {
+        titulo: novoTitulo,
+        categoria: novoCategoria,
+        ano: novoAno ? Number(novoAno) : null,
+      };
+
+      const res = await fetch(`${API_BASE}/filmes`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        throw new Error("Erro ao cadastrar filme.");
+      }
+
+      await res.json();
+      setMensagem("Filme cadastrado com sucesso!");
+
+      setNovoTitulo("");
+      setNovoCategoria("");
+      setNovoAno("");
+
+      carregarFilmes();
+    } catch (err) {
+      console.error(err);
+      setMensagem("Erro ao cadastrar filme.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ----------------------------------------------------
+  // Filtro aplicado
+  // ----------------------------------------------------
+  const filmesFiltrados = filmes.filter((f) => {
+    const termo = filtro.toLowerCase();
+    const titulo = (f.titulo || "").toLowerCase();
+    const categoria = (f.categoria || "").toLowerCase();
+    return titulo.includes(termo) || categoria.includes(termo);
+  });
+
+  // ----------------------------------------------------
+  // Tela de login / cadastro
+  // ----------------------------------------------------
   if (!token) {
     return (
       <div className="app-container">
@@ -272,7 +416,186 @@ function App() {
     );
   }
 
-  // Se tem token → mostra tela de filmes
+  const isAdmin = userRole === "ADMIN";
+
+  // ----------------------------------------------------
+  // Tela ADMIN
+  // ----------------------------------------------------
+  if (isAdmin) {
+    return (
+      <div className="app-container">
+        <div className="card wide">
+          <header className="top-bar">
+            <div>
+              <h1 className="title">Painel do Administrador 🎥</h1>
+              <p className="subtitle">
+                Logado como <strong>{userName || userEmail}</strong> (
+                {userRole})
+              </p>
+            </div>
+            <button className="btn secondary" onClick={handleLogout}>
+              Sair
+            </button>
+          </header>
+
+          <div className="dashboard">
+            <div className="dashboard-main">
+              <section className="section">
+                <h2 className="section-title">Cadastrar novo filme</h2>
+                <form className="form form-inline" onSubmit={handleCriarFilme}>
+                  <div className="form-group">
+                    <label>Título</label>
+                    <input
+                      type="text"
+                      value={novoTitulo}
+                      onChange={(e) => setNovoTitulo(e.target.value)}
+                      required
+                      placeholder="Nome do filme"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Categoria</label>
+                    <input
+                      type="text"
+                      value={novoCategoria}
+                      onChange={(e) => setNovoCategoria(e.target.value)}
+                      placeholder="Ação, Suspense..."
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Ano</label>
+                    <input
+                      type="number"
+                      value={novoAno}
+                      onChange={(e) => setNovoAno(e.target.value)}
+                      placeholder="2025"
+                    />
+                  </div>
+                  <button
+                    className="btn primary"
+                    type="submit"
+                    disabled={loading}
+                  >
+                    {loading ? "Salvando..." : "Cadastrar filme"}
+                  </button>
+                </form>
+              </section>
+
+              <section className="section">
+                <div className="actions">
+                  <input
+                    className="search-input"
+                    type="text"
+                    value={filtro}
+                    onChange={(e) => setFiltro(e.target.value)}
+                    placeholder="Filtrar por título ou categoria..."
+                  />
+                  <button className="btn primary" onClick={carregarFilmes}>
+                    Atualizar lista
+                  </button>
+                  {loading && <span className="loading">Carregando...</span>}
+                </div>
+
+                {mensagem && <p className="message">{mensagem}</p>}
+
+                <div className="films-grid">
+                  {filmesFiltrados.length === 0 && !loading && (
+                    <p>Nenhum filme cadastrado ainda.</p>
+                  )}
+
+                  {filmesFiltrados.map((filme) => (
+                    <div key={filme.id} className="film-card">
+                      <h2>{filme.titulo}</h2>
+                      <p className="film-meta">
+                        Categoria:{" "}
+                        <strong>{filme.categoria || "Sem categoria"}</strong>
+                      </p>
+                      <p className="film-meta">
+                        Ano: <strong>{filme.ano || "—"}</strong>
+                      </p>
+                      <p className="film-meta">
+                        Média de avaliação:{" "}
+                        <strong>
+                          {filme.mediaAvaliacao != null
+                            ? filme.mediaAvaliacao.toFixed(1)
+                            : "N/A"}
+                        </strong>
+                      </p>
+                      <p className="film-meta">
+                        Criado por: <strong>{filme.adminNome}</strong> (
+                        {filme.adminEmail})
+                      </p>
+
+                      <div className="film-actions">
+                        <button
+                          className="btn small primary"
+                          onClick={() => handleAvaliar(filme.id)}
+                        >
+                          Avaliar filme
+                        </button>
+                        <button
+                          className="btn small secondary"
+                          onClick={() => carregarAvaliacoes(filme)}
+                        >
+                          Ver avaliações
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </div>
+
+            <aside className="dashboard-side">
+              <h2 className="section-title">Avaliações</h2>
+              {!filmeSelecionado && (
+                <p className="film-meta">
+                  Selecione um filme em &quot;Ver avaliações&quot;.
+                </p>
+              )}
+
+              {filmeSelecionado && (
+                <>
+                  <p className="film-meta">
+                    Filme: <strong>{filmeSelecionado.titulo}</strong>
+                  </p>
+                  <div className="avaliacoes-list">
+                    {avaliacoes.length === 0 && !loading && (
+                      <p className="film-meta">
+                        Nenhuma avaliação registrada ainda.
+                      </p>
+                    )}
+
+                    {avaliacoes.map((av) => (
+                      <div key={av.id} className="avaliacao-card">
+                        <p className="avaliacao-nota">
+                          Nota: <strong>{av.nota}</strong> ⭐
+                        </p>
+                        <p className="avaliacao-comentario">
+                          {av.comentario || "Sem comentário"}
+                        </p>
+                        <p className="avaliacao-meta">
+                          Por:{" "}
+                          <strong>
+                            {av.usuarioComum?.nome || av.usuarioComum?.email}
+                          </strong>{" "}
+                          em {av.dataAvaliacao}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </aside>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ----------------------------------------------------
+  // Tela USUÁRIO COMUM
+  // ----------------------------------------------------
   return (
     <div className="app-container">
       <div className="card wide">
@@ -280,7 +603,8 @@ function App() {
           <div>
             <h1 className="title">Filmes 🎥</h1>
             <p className="subtitle">
-              Logado como <strong>{userEmail}</strong>
+              Logado como <strong>{userName || userEmail}</strong> (
+              {userRole || "COMUM"})
             </p>
           </div>
           <button className="btn secondary" onClick={handleLogout}>
@@ -288,38 +612,57 @@ function App() {
           </button>
         </header>
 
-        <div className="actions">
-          <button className="btn primary" onClick={carregarFilmes}>
-            Atualizar lista
-          </button>
-          {loading && <span className="loading">Carregando...</span>}
-        </div>
+        <section className="section">
+          <div className="actions">
+            <input
+              className="search-input"
+              type="text"
+              value={filtro}
+              onChange={(e) => setFiltro(e.target.value)}
+              placeholder="Filtrar por título ou categoria..."
+            />
+            <button className="btn primary" onClick={carregarFilmes}>
+              Atualizar lista
+            </button>
+            {loading && <span className="loading">Carregando...</span>}
+          </div>
 
-        {mensagem && <p className="message">{mensagem}</p>}
+          {mensagem && <p className="message">{mensagem}</p>}
 
-        <div className="films-grid">
-          {filmes.length === 0 && !loading && (
-            <p>Nenhum filme cadastrado ainda.</p>
-          )}
+          <div className="films-grid">
+            {filmesFiltrados.length === 0 && !loading && (
+              <p>Nenhum filme cadastrado ainda.</p>
+            )}
 
-          {filmes.map((filme) => (
-            <div key={filme.id} className="film-card">
-              <h2>{filme.titulo}</h2>
-              <p className="film-meta">
-                Criado por: <strong>{filme.adminNome}</strong> (
-                {filme.adminEmail})
-              </p>
-              <p className="film-tag">{filme.tipoUsuario}</p>
+            {filmesFiltrados.map((filme) => (
+              <div key={filme.id} className="film-card">
+                <h2>{filme.titulo}</h2>
+                <p className="film-meta">
+                  Categoria:{" "}
+                  <strong>{filme.categoria || "Sem categoria"}</strong>
+                </p>
+                <p className="film-meta">
+                  Ano: <strong>{filme.ano || "—"}</strong>
+                </p>
+                <p className="film-meta">
+                  Média de avaliação:{" "}
+                  <strong>
+                    {filme.mediaAvaliacao != null
+                      ? filme.mediaAvaliacao.toFixed(1)
+                      : "N/A"}
+                  </strong>
+                </p>
 
-              <button
-                className="btn small primary"
-                onClick={() => handleAvaliar(filme.id)}
-              >
-                Avaliar filme
-              </button>
-            </div>
-          ))}
-        </div>
+                <button
+                  className="btn small primary"
+                  onClick={() => handleAvaliar(filme.id)}
+                >
+                  Avaliar filme
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
       </div>
     </div>
   );

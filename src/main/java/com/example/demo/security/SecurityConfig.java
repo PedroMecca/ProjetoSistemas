@@ -46,8 +46,9 @@ public class SecurityConfig {
                         .requestMatchers(new AntPathRequestMatcher("/h2-console/**")).permitAll()
                         .requestMatchers("/login/**").permitAll()
 
-                        // 👉 cadastro público
                         .requestMatchers(HttpMethod.POST, "/usuarios/registro").permitAll()
+
+                        .requestMatchers(HttpMethod.GET, "/usuarios/me").authenticated()
 
                         .requestMatchers(HttpMethod.GET, "/filmes/**")
                         .hasAnyRole("ADMIN", "COMUM")
@@ -57,6 +58,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/filmes/*/favoritos")
                         .hasAnyRole("ADMIN", "COMUM")
 
+                        // cadastro de filmes só admin
                         .requestMatchers(HttpMethod.POST, "/filmes")
                         .hasRole("ADMIN")
 
@@ -70,6 +72,7 @@ public class SecurityConfig {
 
         return http.build();
     }
+
 
     // Configuração de CORS liberando o front em http://localhost:5173
     @Bean

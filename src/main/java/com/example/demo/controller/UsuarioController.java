@@ -6,8 +6,10 @@ import com.example.demo.dto.UsuarioResponse;
 import com.example.demo.model.TipoUsuario;
 import com.example.demo.model.Usuario;
 import com.example.demo.repository.UsuarioRepository;
+import com.example.demo.security.UsuarioDetails;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
@@ -26,6 +28,9 @@ public class UsuarioController {
         this.passwordEncoder = passwordEncoder;
     }
 
+    // ----------------------------------------------------
+    // REGISTRO (público) - sempre cria usuário COMUM
+    // ----------------------------------------------------
     @PostMapping("/registro")
     @ResponseStatus(HttpStatus.CREATED)
     public UsuarioResponse registrar(@RequestBody @Valid UsuarioRequest req) {
@@ -50,6 +55,23 @@ public class UsuarioController {
                 salvo.getNome(),
                 salvo.getEmail(),
                 salvo.getTipoUsuario().name()
+        );
+    }
+
+    @GetMapping("/me")
+    public UsuarioResponse me(@AuthenticationPrincipal UsuarioDetails userDetails) {
+        if (userDetails == null) {
+            // só por segurança, em teoria nunca cai aqui se a rota estiver protegida
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Não autenticado");
+        }
+
+        Usuario u = userDetails.getUsuario();
+
+        return new UsuarioResponse(
+                u.getId(),
+                u.getNome(),
+                u.getEmail(),
+                u.getTipoUsuario().name()
         );
     }
 }
