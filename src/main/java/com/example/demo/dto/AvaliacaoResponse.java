@@ -11,13 +11,13 @@ public record AvaliacaoResponse(
         UsuarioResumo usuarioComum
 ) {
     public static AvaliacaoResponse fromEntity(Avaliacao av) {
-        Usuario u = av.getUsuarioComum(); // 👈 bate com setUsuarioComum
+        Usuario u = av.getUsuarioComum();
 
         return new AvaliacaoResponse(
                 av.getId(),
                 av.getNota(),
                 av.getComentario(),
-                av.getDataAvaliacao().toString(), // pode formatar depois
+                av.getDataAvaliacao().toString(),
                 new UsuarioResumo(
                         u.getNome(),
                         u.getEmail()

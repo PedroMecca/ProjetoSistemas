@@ -33,8 +33,9 @@ function App() {
   const [novoTitulo, setNovoTitulo] = useState("");
   const [novoCategoria, setNovoCategoria] = useState("");
   const [novoAno, setNovoAno] = useState("");
+  const [novoPosterUrl, setNovoPosterUrl] = useState("");
 
-  // admin: painel de avaliações
+  // painel de avaliações (admin e usuário comum)
   const [filmeSelecionado, setFilmeSelecionado] = useState(null);
   const [avaliacoes, setAvaliacoes] = useState([]);
 
@@ -172,6 +173,12 @@ function App() {
     setMensagem("");
     setLoading(true);
 
+    if (senha.length < 6) {
+      setMensagem("Senha deve ter pelo menos 6 caracteres.");
+      setLoading(false);
+      return;
+    }
+
     try {
       // 1) cria o usuário
       const res = await fetch(`${API_BASE}/usuarios/registro`, {
@@ -181,10 +188,18 @@ function App() {
       });
 
       if (!res.ok) {
-        if (res.status === 400) {
-          throw new Error("E-mail já cadastrado.");
+        const errorText = await res.text();
+        console.error("Erro ao registrar usuário:", res.status, errorText);
+
+        let msg = "Erro ao registrar usuário.";
+        try {
+          const obj = JSON.parse(errorText);
+          msg = obj.message || msg;
+        } catch (_) {
+          msg = errorText;
         }
-        throw new Error("Erro ao registrar usuário.");
+
+        throw new Error(msg);
       }
 
       setMensagem("Conta criada! Fazendo login...");
@@ -207,7 +222,6 @@ function App() {
       await carregarPerfil(loginData.token);
 
       setMensagem("Conta criada e login realizado!");
-      // setMode("login"); // nem precisa, já está logado pelo token
     } catch (err) {
       console.error(err);
       setMensagem(err.message || "Erro ao criar conta. Tente outro e-mail.");
@@ -290,6 +304,7 @@ function App() {
         titulo: novoTitulo,
         categoria: novoCategoria,
         ano: novoAno ? Number(novoAno) : null,
+        posterUrl: novoPosterUrl || null,
       };
 
       const res = await fetch(`${API_BASE}/filmes`, {
@@ -311,6 +326,7 @@ function App() {
       setNovoTitulo("");
       setNovoCategoria("");
       setNovoAno("");
+      setNovoPosterUrl("");
 
       carregarFilmes();
     } catch (err) {
@@ -338,7 +354,13 @@ function App() {
     return (
       <div className="app-container">
         <div className="card">
-          <h1 className="title">Avaliador de Filmes 🎬</h1>
+          <h1 className="title">
+            Movie<span className="highlight">Hub</span> 🎬
+          </h1>
+          <p className="subtitle">Seja bem-vindo!</p>
+          <p className="subtitle small">
+            Desenvolvido por <strong>Pedro Bonelli</strong>
+          </p>
           <p className="subtitle">
             {mode === "login"
               ? "Entre com sua conta para ver e avaliar filmes."
@@ -427,10 +449,14 @@ function App() {
         <div className="card wide">
           <header className="top-bar">
             <div>
-              <h1 className="title">Painel do Administrador 🎥</h1>
+              <h1 className="title">
+                Movie<span className="highlight">Hub</span> 🎬
+              </h1>
               <p className="subtitle">
-                Logado como <strong>{userName || userEmail}</strong> (
-                {userRole})
+                Seja bem-vindo, <strong>{userName || userEmail}</strong>
+              </p>
+              <p className="subtitle small">
+                Desenvolvido por <strong>Pedro Bonelli</strong>
               </p>
             </div>
             <button className="btn secondary" onClick={handleLogout}>
@@ -471,6 +497,15 @@ function App() {
                       placeholder="2025"
                     />
                   </div>
+                  <div className="form-group">
+                    <label>URL da imagem (pôster/logo)</label>
+                    <input
+                      type="url"
+                      value={novoPosterUrl}
+                      onChange={(e) => setNovoPosterUrl(e.target.value)}
+                      placeholder="https://exemplo.com/poster.jpg"
+                    />
+                  </div>
                   <button
                     className="btn primary"
                     type="submit"
@@ -505,6 +540,15 @@ function App() {
 
                   {filmesFiltrados.map((filme) => (
                     <div key={filme.id} className="film-card">
+                      {filme.posterUrl && (
+                        <div className="film-poster">
+                          <img
+                            src={filme.posterUrl}
+                            alt={`Pôster de ${filme.titulo}`}
+                          />
+                        </div>
+                      )}
+
                       <h2>{filme.titulo}</h2>
                       <p className="film-meta">
                         Categoria:{" "}
@@ -601,10 +645,15 @@ function App() {
       <div className="card wide">
         <header className="top-bar">
           <div>
-            <h1 className="title">Filmes 🎥</h1>
+            <h1 className="title">
+              Movie<span className="highlight">Hub</span> 🎬
+            </h1>
             <p className="subtitle">
-              Logado como <strong>{userName || userEmail}</strong> (
-              {userRole || "COMUM"})
+              Seja bem-vindo, <strong>{userName || userEmail}</strong>
+            </p>
+
+            <p className="subtitle small">
+              Desenvolvido por <strong>Pedro Bonelli</strong>
             </p>
           </div>
           <button className="btn secondary" onClick={handleLogout}>
@@ -636,6 +685,15 @@ function App() {
 
             {filmesFiltrados.map((filme) => (
               <div key={filme.id} className="film-card">
+                {filme.posterUrl && (
+                  <div className="film-poster">
+                    <img
+                      src={filme.posterUrl}
+                      alt={`Pôster de ${filme.titulo}`}
+                    />
+                  </div>
+                )}
+
                 <h2>{filme.titulo}</h2>
                 <p className="film-meta">
                   Categoria:{" "}
@@ -653,15 +711,70 @@ function App() {
                   </strong>
                 </p>
 
-                <button
-                  className="btn small primary"
-                  onClick={() => handleAvaliar(filme.id)}
-                >
-                  Avaliar filme
-                </button>
+                <div className="film-actions">
+                  <button
+                    className="btn small primary"
+                    onClick={() => handleAvaliar(filme.id)}
+                  >
+                    Avaliar filme
+                  </button>
+
+                  <button
+                    className="btn small secondary"
+                    onClick={() => carregarAvaliacoes(filme)}
+                  >
+                    Ver comentários
+                  </button>
+                </div>
               </div>
             ))}
           </div>
+
+          {/* Painel de comentários para usuário comum */}
+          <section className="section comments-section">
+            <h2 className="section-title">Comentários do filme</h2>
+
+            {!filmeSelecionado && (
+              <p className="film-meta">
+                Clique em <strong>"Ver comentários"</strong> em algum filme
+                para ver as avaliações.
+              </p>
+            )}
+
+            {filmeSelecionado && (
+              <>
+                <p className="film-meta">
+                  Filme: <strong>{filmeSelecionado.titulo}</strong>
+                </p>
+
+                <div className="avaliacoes-list">
+                  {avaliacoes.length === 0 && !loading && (
+                    <p className="film-meta">
+                      Nenhuma avaliação registrada ainda para este filme.
+                    </p>
+                  )}
+
+                  {avaliacoes.map((av) => (
+                    <div key={av.id} className="avaliacao-card">
+                      <p className="avaliacao-nota">
+                        Nota: <strong>{av.nota}</strong> ⭐
+                      </p>
+                      <p className="avaliacao-comentario">
+                        {av.comentario || "Sem comentário"}
+                      </p>
+                      <p className="avaliacao-meta">
+                        Por:{" "}
+                        <strong>
+                          {av.usuarioComum?.nome || av.usuarioComum?.email}
+                        </strong>{" "}
+                        em {av.dataAvaliacao}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </section>
         </section>
       </div>
     </div>

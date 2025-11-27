@@ -7,5 +7,10 @@ public record FilmeRequest(
 
         @NotBlank(message = "Título é obrigatório")
         @Size(min = 1, max = 255, message = "Título deve ter entre 1 e 255 caracteres")
-        String titulo
+        String titulo,
+
+        // opcionais
+        String categoria,
+        Integer ano,
+        String posterUrl
 ) {}

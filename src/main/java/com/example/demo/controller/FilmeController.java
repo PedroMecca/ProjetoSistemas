@@ -54,6 +54,9 @@ public class FilmeController {
                 .map(f -> new FilmeResponse(
                         f.getId(),
                         f.getTitulo(),
+                        f.getCategoria(),
+                        f.getAno(),
+                        f.getPosterUrl(),
                         f.getAdminCriador().getNome(),
                         f.getAdminCriador().getEmail(),
                         f.getAdminCriador().getTipoUsuario().name()
@@ -62,6 +65,7 @@ public class FilmeController {
 
         return ResponseEntity.ok(filmes);
     }
+
 
     // ----------------------------------------------------
     // CRIAR AVALIAÇÃO (ADMIN + COMUM)
@@ -154,6 +158,9 @@ public class FilmeController {
 
         Filme f = new Filme();
         f.setTitulo(req.titulo());
+        f.setCategoria(req.categoria());
+        f.setAno(req.ano());
+        f.setPosterUrl(req.posterUrl());
         f.setAdminCriador(admin);
 
         Filme salvo = filmeRepo.save(f);
@@ -161,6 +168,9 @@ public class FilmeController {
         FilmeResponse response = new FilmeResponse(
                 salvo.getId(),
                 salvo.getTitulo(),
+                salvo.getCategoria(),
+                salvo.getAno(),
+                salvo.getPosterUrl(),
                 admin.getNome(),
                 admin.getEmail(),
                 admin.getTipoUsuario().name()
@@ -168,4 +178,5 @@ public class FilmeController {
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
+
 }
