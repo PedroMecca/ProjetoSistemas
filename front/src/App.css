@@ -163,11 +163,13 @@ code {
   margin-bottom: 16px;
 }
 
+/* Barra de filtros + botão atualizar */
 .actions {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   margin-bottom: 16px;
+  flex-wrap: wrap;
 }
 
 .loading {
@@ -321,7 +323,7 @@ code {
   }
 }
 
-
+/* Poster do filme */
 .film-poster {
   width: 100%;
   height: 450px;
@@ -335,6 +337,7 @@ code {
   object-fit: cover;
 }
 
+/* Seção de comentários (usuário comum) */
 .comments-section {
   margin-top: 24px;
   padding-top: 16px;
@@ -348,4 +351,100 @@ code {
 .subtitle.small {
   font-size: 0.85rem;
   opacity: 0.8;
+}
+
+/* Filtros (chips de categoria) */
+.filter-group {
+  flex: 1 1 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filter-label {
+  font-size: 0.85rem;
+  color: #9ca3af;
+}
+
+.category-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  border-radius: 999px;
+  padding: 4px 12px;
+  border: 1px solid #4b5563;
+  background: #020617;
+  color: #e5e7eb;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease,
+    transform 0.1s ease;
+}
+
+.chip:hover {
+  transform: translateY(-1px);
+  border-color: #38bdf8;
+}
+
+.chip.active {
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.15);
+}
+
+/* ==== MODAIS ==== */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.modal {
+  background: #020617;
+  border-radius: 16px;
+  padding: 24px;
+  width: 100%;
+  max-width: 420px;
+  border: 1px solid #374151;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
+}
+
+.modal-title {
+  font-size: 1.2rem;
+  margin-bottom: 4px;
+}
+
+.modal-subtitle {
+  font-size: 0.9rem;
+  color: #9ca3af;
+  margin-bottom: 16px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* textarea do modal de comentário */
+.textarea {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #4b5563;
+  background: #020617;
+  color: #e5e7eb;
+  resize: vertical;
+}
+
+.textarea:focus {
+  outline: none;
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.4);
 }

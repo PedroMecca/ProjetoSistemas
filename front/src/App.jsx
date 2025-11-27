@@ -29,8 +29,9 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [mensagem, setMensagem] = useState("");
 
-  // filtro de filmes
-  const [filtro, setFiltro] = useState("");
+  // filtro: título + categoria (chips)
+  const [filtroTitulo, setFiltroTitulo] = useState("");
+  const [categoriaSelecionada, setCategoriaSelecionada] = useState("ALL");
 
   // admin: cadastro de novo filme
   const [novoTitulo, setNovoTitulo] = useState("");
@@ -42,6 +43,13 @@ function App() {
   const [filmeSelecionado, setFilmeSelecionado] = useState(null);
   const [avaliacoes, setAvaliacoes] = useState([]);
   const [comentarios, setComentarios] = useState([]);
+
+  // modais (avaliar + comentar)
+  const [avaliacaoModalAberto, setAvaliacaoModalAberto] = useState(false);
+  const [comentarioModalAberto, setComentarioModalAberto] = useState(false);
+  const [filmeEmEdicao, setFilmeEmEdicao] = useState(null);
+  const [notaInput, setNotaInput] = useState("");
+  const [comentarioInput, setComentarioInput] = useState("");
 
   // ----------------------------------------------------
   // Helpers
@@ -266,15 +274,38 @@ function App() {
   }
 
   // ----------------------------------------------------
-  // Ações de filme (usuário comum e admin)
+  // Modais: abrir/fechar
   // ----------------------------------------------------
-  async function handleAvaliar(filmeId) {
-    const notaStr = prompt("Informe a nota de 0 a 5:");
-    if (notaStr === null) return;
+  function abrirModalAvaliacao(filme) {
+    setFilmeEmEdicao(filme);
+    setNotaInput("");
+    setAvaliacaoModalAberto(true);
+  }
 
-    const nota = Number(notaStr);
+  function abrirModalComentario(filme) {
+    setFilmeEmEdicao(filme);
+    setComentarioInput("");
+    setComentarioModalAberto(true);
+  }
+
+  function fecharModais() {
+    setAvaliacaoModalAberto(false);
+    setComentarioModalAberto(false);
+    setFilmeEmEdicao(null);
+    setNotaInput("");
+    setComentarioInput("");
+  }
+
+  // ----------------------------------------------------
+  // Ações de filme (enviar avaliação/comentário via modal)
+  // ----------------------------------------------------
+  async function handleAvaliarSubmit(e) {
+    e.preventDefault();
+    if (!filmeEmEdicao) return;
+
+    const nota = Number(notaInput);
     if (Number.isNaN(nota) || nota < 0 || nota > 5) {
-      alert("Nota inválida. Digite um número de 0 a 5.");
+      setMensagem("A nota deve ser um número entre 0 e 5.");
       return;
     }
 
@@ -282,14 +313,17 @@ function App() {
       setLoading(true);
       setMensagem("");
 
-      const res = await fetch(`${API_BASE}/filmes/${filmeId}/avaliacoes`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ nota }),
-      });
+      const res = await fetch(
+        `${API_BASE}/filmes/${filmeEmEdicao.id}/avaliacoes`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ nota }),
+        }
+      );
 
       if (!res.ok) {
         throw new Error("Erro ao enviar avaliação");
@@ -298,13 +332,13 @@ function App() {
       await res.json();
       setMensagem("Avaliação enviada/atualizada com sucesso!");
 
-      // recarrega filmes para atualizar média
-      carregarFilmes();
+      await carregarFilmes();
 
-      // se o painel estiver aberto para esse filme, recarrega notas/comentários
-      if (filmeSelecionado && filmeSelecionado.id === filmeId) {
-        carregarAvaliacoesEComentarios(filmeSelecionado);
+      if (filmeSelecionado && filmeSelecionado.id === filmeEmEdicao.id) {
+        await carregarAvaliacoesEComentarios(filmeSelecionado);
       }
+
+      fecharModais();
     } catch (err) {
       console.error(err);
       setMensagem("Erro ao avaliar o filme.");
@@ -313,9 +347,13 @@ function App() {
     }
   }
 
-  async function handleComentar(filmeId) {
-    const texto = prompt("Digite seu comentário:");
-    if (!texto || !texto.trim()) {
+  async function handleComentarSubmit(e) {
+    e.preventDefault();
+    if (!filmeEmEdicao) return;
+
+    const texto = comentarioInput.trim();
+    if (!texto) {
+      setMensagem("Digite um comentário antes de enviar.");
       return;
     }
 
@@ -323,14 +361,17 @@ function App() {
       setLoading(true);
       setMensagem("");
 
-      const res = await fetch(`${API_BASE}/filmes/${filmeId}/comentarios`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ texto }),
-      });
+      const res = await fetch(
+        `${API_BASE}/filmes/${filmeEmEdicao.id}/comentarios`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ texto }),
+        }
+      );
 
       if (!res.ok) {
         throw new Error("Erro ao adicionar comentário");
@@ -339,10 +380,11 @@ function App() {
       await res.json();
       setMensagem("Comentário adicionado com sucesso!");
 
-      // se o painel estiver aberto para esse filme, recarrega tudo
-      if (filmeSelecionado && filmeSelecionado.id === filmeId) {
-        carregarAvaliacoesEComentarios(filmeSelecionado);
+      if (filmeSelecionado && filmeSelecionado.id === filmeEmEdicao.id) {
+        await carregarAvaliacoesEComentarios(filmeSelecionado);
       }
+
+      fecharModais();
     } catch (err) {
       console.error(err);
       setMensagem("Erro ao adicionar comentário.");
@@ -400,13 +442,19 @@ function App() {
   }
 
   // ----------------------------------------------------
-  // Filtro aplicado
+  // Filtro aplicado (título + categoria)
   // ----------------------------------------------------
   const filmesFiltrados = filmes.filter((f) => {
-    const termo = filtro.toLowerCase();
+    const termoTitulo = filtroTitulo.toLowerCase();
     const titulo = (f.titulo || "").toLowerCase();
     const categoria = (f.categoria || "").toLowerCase();
-    return titulo.includes(termo) || categoria.includes(termo);
+
+    const matchTitulo = !termoTitulo || titulo.includes(termoTitulo);
+    const matchCategoria =
+      categoriaSelecionada === "ALL" ||
+      categoria === categoriaSelecionada.toLowerCase();
+
+    return matchTitulo && matchCategoria;
   });
 
   // ----------------------------------------------------
@@ -507,6 +555,372 @@ function App() {
   // ----------------------------------------------------
   if (isAdmin) {
     return (
+      <>
+        {/* Modal de avaliação (admin) */}
+        {avaliacaoModalAberto && (
+          <div className="modal-backdrop">
+            <div className="modal">
+              <h2 className="modal-title">Avaliar filme</h2>
+              <p className="modal-subtitle">
+                Filme: <strong>{filmeEmEdicao?.titulo}</strong>
+              </p>
+
+              <form onSubmit={handleAvaliarSubmit} className="form">
+                <div className="form-group">
+                  <label>Nota (0 a 5)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="5"
+                    step="0.5"
+                    value={notaInput}
+                    onChange={(e) => setNotaInput(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="modal-actions">
+                  <button
+                    type="button"
+                    className="btn secondary"
+                    onClick={fecharModais}
+                  >
+                    Cancelar
+                  </button>
+                  <button className="btn primary" type="submit" disabled={loading}>
+                    {loading ? "Enviando..." : "Salvar avaliação"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        <div className="app-container">
+          <div className="card wide">
+            <header className="top-bar">
+              <div>
+                <h1 className="title">
+                  Movie<span className="highlight">Hub</span> 🎬
+                </h1>
+                <p className="subtitle">
+                  Seja bem-vindo, <strong>{userName || userEmail}</strong>
+                </p>
+                <p className="subtitle small">
+                  Desenvolvido por <strong>Pedro Bonelli</strong>
+                </p>
+              </div>
+              <button className="btn secondary" onClick={handleLogout}>
+                Sair
+              </button>
+            </header>
+
+            <div className="dashboard">
+              <div className="dashboard-main">
+                <section className="section">
+                  <h2 className="section-title">Cadastrar novo filme</h2>
+                  <form className="form form-inline" onSubmit={handleCriarFilme}>
+                    <div className="form-group">
+                      <label>Título</label>
+                      <input
+                        type="text"
+                        value={novoTitulo}
+                        onChange={(e) => setNovoTitulo(e.target.value)}
+                        required
+                        placeholder="Nome do filme"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Categoria</label>
+                      <input
+                        type="text"
+                        value={novoCategoria}
+                        onChange={(e) => setNovoCategoria(e.target.value)}
+                        placeholder="Ação, Suspense..."
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Ano</label>
+                      <input
+                        type="number"
+                        value={novoAno}
+                        onChange={(e) => setNovoAno(e.target.value)}
+                        placeholder="2025"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>URL da imagem (pôster/logo)</label>
+                      <input
+                        type="url"
+                        value={novoPosterUrl}
+                        onChange={(e) => setNovoPosterUrl(e.target.value)}
+                        placeholder="https://exemplo.com/poster.jpg"
+                      />
+                    </div>
+                    <button
+                      className="btn primary"
+                      type="submit"
+                      disabled={loading}
+                    >
+                      {loading ? "Salvando..." : "Cadastrar filme"}
+                    </button>
+                  </form>
+                </section>
+
+                <section className="section">
+                  <div className="actions">
+                    <div className="filter-group">
+                      <span className="filter-label">Buscar por</span>
+
+                      <input
+                        className="search-input"
+                        type="text"
+                        value={filtroTitulo}
+                        onChange={(e) => setFiltroTitulo(e.target.value)}
+                        placeholder="Título do filme..."
+                      />
+
+                      <div className="category-chips">
+                        {[
+                          { label: "Todas", value: "ALL" },
+                          { label: "Animação", value: "Animação" },
+                          { label: "Ação", value: "Ação" },
+                          { label: "Fantasia", value: "Fantasia" },
+                          { label: "Ficção Científica", value: "ficção científica" },
+                          { label: "Drama", value: "drama" },
+                        ].map((cat) => (
+                          <button
+                            key={cat.value}
+                            type="button"
+                            className={
+                              "chip" +
+                              (categoriaSelecionada === cat.value ? " active" : "")
+                            }
+                            onClick={() => setCategoriaSelecionada(cat.value)}
+                          >
+                            {cat.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <button className="btn primary" onClick={carregarFilmes}>
+                      Atualizar lista
+                    </button>
+                    {loading && <span className="loading">Carregando...</span>}
+                  </div>
+
+                  {mensagem && <p className="message">{mensagem}</p>}
+
+                  <div className="films-grid">
+                    {filmesFiltrados.length === 0 && !loading && (
+                      <p>Nenhum filme cadastrado ainda.</p>
+                    )}
+
+                    {filmesFiltrados.map((filme) => (
+                      <div key={filme.id} className="film-card">
+                        {filme.posterUrl && (
+                          <div className="film-poster">
+                            <img
+                              src={filme.posterUrl}
+                              alt={`Pôster de ${filme.titulo}`}
+                            />
+                          </div>
+                        )}
+
+                        <h2>{filme.titulo}</h2>
+                        <p className="film-meta">
+                          Categoria:{" "}
+                          <strong>{filme.categoria || "Sem categoria"}</strong>
+                        </p>
+                        <p className="film-meta">
+                          Ano: <strong>{filme.ano || "—"}</strong>
+                        </p>
+                        <p className="film-meta">
+                          Média de avaliação:{" "}
+                          <strong>
+                            {filme.mediaAvaliacao != null
+                              ? filme.mediaAvaliacao.toFixed(1)
+                              : "N/A"}
+                          </strong>
+                        </p>
+                        <p className="film-meta">
+                          Criado por: <strong>{filme.adminNome}</strong> (
+                          {filme.adminEmail})
+                        </p>
+
+                        <div className="film-actions">
+                          <button
+                            className="btn small primary"
+                            onClick={() => abrirModalAvaliacao(filme)}
+                          >
+                            Avaliar filme
+                          </button>
+                          <button
+                            className="btn small secondary"
+                            onClick={() =>
+                              carregarAvaliacoesEComentarios(filme)
+                            }
+                          >
+                            Ver comentários
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              </div>
+
+              <aside
+                className="dashboard-side"
+                ref={comentariosRef} // scroll aqui no admin
+              >
+                <h2 className="section-title">Comentários do filme</h2>
+                {!filmeSelecionado && (
+                  <p className="film-meta">
+                    Selecione um filme em &quot;Ver comentários&quot;.
+                  </p>
+                )}
+
+                {filmeSelecionado && (
+                  <>
+                    <p className="film-meta">
+                      Filme: <strong>{filmeSelecionado.titulo}</strong>
+                    </p>
+                    <div className="avaliacoes-list">
+                      {/* Avaliações com nota */}
+                      {avaliacoes.map((av) => (
+                        <div key={`av-${av.id}`} className="avaliacao-card">
+                          {av.comentario && (
+                            <p className="avaliacao-comentario">
+                              {av.comentario}
+                            </p>
+                          )}
+                          <p className="avaliacao-nota">
+                            Nota: <strong>{av.nota}</strong> ⭐
+                          </p>
+                          <p className="avaliacao-meta">
+                            Por:{" "}
+                            <strong>
+                              {av.usuarioComum?.nome || av.usuarioComum?.email}
+                            </strong>{" "}
+                            em {av.dataAvaliacao}
+                          </p>
+                        </div>
+                      ))}
+
+                      {/* Comentários sem nota */}
+                      {comentarios.map((c) => (
+                        <div key={`c-${c.id}`} className="avaliacao-card">
+                          <p className="avaliacao-comentario">{c.texto}</p>
+                          <p className="avaliacao-meta">
+                            Por:{" "}
+                            <strong>
+                              {c.usuarioComum?.nome || c.usuarioComum?.email}
+                            </strong>{" "}
+                            em {c.dataComentario}
+                          </p>
+                        </div>
+                      ))}
+
+                      {avaliacoes.length === 0 &&
+                        comentarios.length === 0 &&
+                        !loading && (
+                          <p className="film-meta">
+                            Nenhuma avaliação/comentário registrado ainda.
+                          </p>
+                        )}
+                    </div>
+                  </>
+                )}
+              </aside>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // ----------------------------------------------------
+  // Tela USUÁRIO COMUM
+  // ----------------------------------------------------
+  return (
+    <>
+      {/* Modal de avaliação */}
+      {avaliacaoModalAberto && (
+        <div className="modal-backdrop">
+          <div className="modal">
+            <h2 className="modal-title">Avaliar filme</h2>
+            <p className="modal-subtitle">
+              Filme: <strong>{filmeEmEdicao?.titulo}</strong>
+            </p>
+
+            <form onSubmit={handleAvaliarSubmit} className="form">
+              <div className="form-group">
+                <label>Nota (0 a 5)</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="5"
+                  step="0.5"
+                  value={notaInput}
+                  onChange={(e) => setNotaInput(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="btn secondary"
+                  onClick={fecharModais}
+                >
+                  Cancelar
+                </button>
+                <button className="btn primary" type="submit" disabled={loading}>
+                  {loading ? "Enviando..." : "Salvar avaliação"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de comentário */}
+      {comentarioModalAberto && (
+        <div className="modal-backdrop">
+          <div className="modal">
+            <h2 className="modal-title">Adicionar comentário</h2>
+            <p className="modal-subtitle">
+              Filme: <strong>{filmeEmEdicao?.titulo}</strong>
+            </p>
+
+            <form onSubmit={handleComentarSubmit} className="form">
+              <div className="form-group">
+                <label>Comentário</label>
+                <textarea
+                  className="textarea"
+                  rows={3}
+                  value={comentarioInput}
+                  onChange={(e) => setComentarioInput(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="btn secondary"
+                  onClick={fecharModais}
+                >
+                  Cancelar
+                </button>
+                <button className="btn primary" type="submit" disabled={loading}>
+                  {loading ? "Enviando..." : "Enviar comentário"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       <div className="app-container">
         <div className="card wide">
           <header className="top-bar">
@@ -517,6 +931,7 @@ function App() {
               <p className="subtitle">
                 Seja bem-vindo, <strong>{userName || userEmail}</strong>
               </p>
+
               <p className="subtitle small">
                 Desenvolvido por <strong>Pedro Bonelli</strong>
               </p>
@@ -526,142 +941,121 @@ function App() {
             </button>
           </header>
 
-          <div className="dashboard">
-            <div className="dashboard-main">
-              <section className="section">
-                <h2 className="section-title">Cadastrar novo filme</h2>
-                <form className="form form-inline" onSubmit={handleCriarFilme}>
-                  <div className="form-group">
-                    <label>Título</label>
-                    <input
-                      type="text"
-                      value={novoTitulo}
-                      onChange={(e) => setNovoTitulo(e.target.value)}
-                      required
-                      placeholder="Nome do filme"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Categoria</label>
-                    <input
-                      type="text"
-                      value={novoCategoria}
-                      onChange={(e) => setNovoCategoria(e.target.value)}
-                      placeholder="Ação, Suspense..."
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Ano</label>
-                    <input
-                      type="number"
-                      value={novoAno}
-                      onChange={(e) => setNovoAno(e.target.value)}
-                      placeholder="2025"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>URL da imagem (pôster/logo)</label>
-                    <input
-                      type="url"
-                      value={novoPosterUrl}
-                      onChange={(e) => setNovoPosterUrl(e.target.value)}
-                      placeholder="https://exemplo.com/poster.jpg"
-                    />
-                  </div>
-                  <button
-                    className="btn primary"
-                    type="submit"
-                    disabled={loading}
-                  >
-                    {loading ? "Salvando..." : "Cadastrar filme"}
-                  </button>
-                </form>
-              </section>
+          <section className="section">
+            <div className="actions">
+              <div className="filter-group">
+                <span className="filter-label">Buscar por</span>
 
-              <section className="section">
-                <div className="actions">
-                  <input
-                    className="search-input"
-                    type="text"
-                    value={filtro}
-                    onChange={(e) => setFiltro(e.target.value)}
-                    placeholder="Filtrar por título ou categoria..."
-                  />
-                  <button className="btn primary" onClick={carregarFilmes}>
-                    Atualizar lista
-                  </button>
-                  {loading && <span className="loading">Carregando...</span>}
-                </div>
+                <input
+                  className="search-input"
+                  type="text"
+                  value={filtroTitulo}
+                  onChange={(e) => setFiltroTitulo(e.target.value)}
+                  placeholder="Título do filme..."
+                />
 
-                {mensagem && <p className="message">{mensagem}</p>}
-
-                <div className="films-grid">
-                  {filmesFiltrados.length === 0 && !loading && (
-                    <p>Nenhum filme cadastrado ainda.</p>
-                  )}
-
-                  {filmesFiltrados.map((filme) => (
-                    <div key={filme.id} className="film-card">
-                      {filme.posterUrl && (
-                        <div className="film-poster">
-                          <img
-                            src={filme.posterUrl}
-                            alt={`Pôster de ${filme.titulo}`}
-                          />
-                        </div>
-                      )}
-
-                      <h2>{filme.titulo}</h2>
-                      <p className="film-meta">
-                        Categoria:{" "}
-                        <strong>{filme.categoria || "Sem categoria"}</strong>
-                      </p>
-                      <p className="film-meta">
-                        Ano: <strong>{filme.ano || "—"}</strong>
-                      </p>
-                      <p className="film-meta">
-                        Média de avaliação:{" "}
-                        <strong>
-                          {filme.mediaAvaliacao != null
-                            ? filme.mediaAvaliacao.toFixed(1)
-                            : "N/A"}
-                        </strong>
-                      </p>
-                      <p className="film-meta">
-                        Criado por: <strong>{filme.adminNome}</strong> (
-                        {filme.adminEmail})
-                      </p>
-
-                      <div className="film-actions">
-                        <button
-                          className="btn small primary"
-                          onClick={() => handleAvaliar(filme.id)}
-                        >
-                          Avaliar filme
-                        </button>
-                        <button
-                          className="btn small secondary"
-                          onClick={() =>
-                            carregarAvaliacoesEComentarios(filme)
-                          }
-                        >
-                          Ver comentários
-                        </button>
-                      </div>
-                    </div>
+                <div className="category-chips">
+                  {[
+                    { label: "Todas", value: "ALL" },
+                    { label: "Animação", value: "Animação" },
+                    { label: "Ação", value: "Ação" },
+                    { label: "Fantasia", value: "Fantasia" },
+                    { label: "Ficção Científica", value: "ficção científica" },
+                    { label: "Drama", value: "drama" },
+                  ].map((cat) => (
+                    <button
+                      key={cat.value}
+                      type="button"
+                      className={
+                        "chip" +
+                        (categoriaSelecionada === cat.value ? " active" : "")
+                      }
+                      onClick={() => setCategoriaSelecionada(cat.value)}
+                    >
+                      {cat.label}
+                    </button>
                   ))}
                 </div>
-              </section>
+              </div>
+
+              <button className="btn primary" onClick={carregarFilmes}>
+                Atualizar lista
+              </button>
+              {loading && <span className="loading">Carregando...</span>}
             </div>
 
-            <aside
-              className="dashboard-side"
-              ref={comentariosRef} // scroll aqui no admin
+            {mensagem && <p className="message">{mensagem}</p>}
+
+            <div className="films-grid">
+              {filmesFiltrados.length === 0 && !loading && (
+                <p>Nenhum filme cadastrado ainda.</p>
+              )}
+
+              {filmesFiltrados.map((filme) => (
+                <div key={filme.id} className="film-card">
+                  {filme.posterUrl && (
+                    <div className="film-poster">
+                      <img
+                        src={filme.posterUrl}
+                        alt={`Pôster de ${filme.titulo}`}
+                      />
+                    </div>
+                  )}
+
+                  <h2>{filme.titulo}</h2>
+                  <p className="film-meta">
+                    Categoria:{" "}
+                    <strong>{filme.categoria || "Sem categoria"}</strong>
+                  </p>
+                  <p className="film-meta">
+                    Ano: <strong>{filme.ano || "—"}</strong>
+                  </p>
+                  <p className="film-meta">
+                    Média de avaliação:{" "}
+                    <strong>
+                      {filme.mediaAvaliacao != null
+                        ? filme.mediaAvaliacao.toFixed(1)
+                        : "N/A"}
+                    </strong>
+                  </p>
+
+                  <div className="film-actions">
+                    <button
+                      className="btn small primary"
+                      onClick={() => abrirModalAvaliacao(filme)}
+                    >
+                      Avaliar filme
+                    </button>
+
+                    <button
+                      className="btn small secondary"
+                      onClick={() => abrirModalComentario(filme)}
+                    >
+                      Adicionar comentário
+                    </button>
+
+                    <button
+                      className="btn small secondary"
+                      onClick={() => carregarAvaliacoesEComentarios(filme)}
+                    >
+                      Ver comentários
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Painel de comentários para usuário comum */}
+            <section
+              className="section comments-section"
+              ref={comentariosRef} // scroll aqui no usuário comum
             >
               <h2 className="section-title">Comentários do filme</h2>
+
               {!filmeSelecionado && (
                 <p className="film-meta">
-                  Selecione um filme em &quot;Ver comentários&quot;.
+                  Clique em <strong>"Ver comentários"</strong> em algum filme
+                  para ver as avaliações e comentários.
                 </p>
               )}
 
@@ -670,10 +1064,11 @@ function App() {
                   <p className="film-meta">
                     Filme: <strong>{filmeSelecionado.titulo}</strong>
                   </p>
+
                   <div className="avaliacoes-list">
-                    {/* Avaliações com nota */}
+                    {/* Avaliações com nota (podem ter comentário) */}
                     {avaliacoes.map((av) => (
-                      <div key={`av-${av.id}`} className="avaliacao-card">
+                      <div key={`av-user-${av.id}`} className="avaliacao-card">
                         {av.comentario && (
                           <p className="avaliacao-comentario">
                             {av.comentario}
@@ -694,7 +1089,7 @@ function App() {
 
                     {/* Comentários sem nota */}
                     {comentarios.map((c) => (
-                      <div key={`c-${c.id}`} className="avaliacao-card">
+                      <div key={`c-user-${c.id}`} className="avaliacao-card">
                         <p className="avaliacao-comentario">{c.texto}</p>
                         <p className="avaliacao-meta">
                           Por:{" "}
@@ -710,190 +1105,18 @@ function App() {
                       comentarios.length === 0 &&
                       !loading && (
                         <p className="film-meta">
-                          Nenhuma avaliação/comentário registrado ainda.
+                          Nenhuma avaliação/comentário registrado ainda para
+                          este filme.
                         </p>
                       )}
                   </div>
                 </>
               )}
-            </aside>
-          </div>
+            </section>
+          </section>
         </div>
       </div>
-    );
-  }
-
-  // ----------------------------------------------------
-  // Tela USUÁRIO COMUM
-  // ----------------------------------------------------
-  return (
-    <div className="app-container">
-      <div className="card wide">
-        <header className="top-bar">
-          <div>
-            <h1 className="title">
-              Movie<span className="highlight">Hub</span> 🎬
-            </h1>
-            <p className="subtitle">
-              Seja bem-vindo, <strong>{userName || userEmail}</strong>
-            </p>
-
-            <p className="subtitle small">
-              Desenvolvido por <strong>Pedro Bonelli</strong>
-            </p>
-          </div>
-          <button className="btn secondary" onClick={handleLogout}>
-            Sair
-          </button>
-        </header>
-
-        <section className="section">
-          <div className="actions">
-            <input
-              className="search-input"
-              type="text"
-              value={filtro}
-              onChange={(e) => setFiltro(e.target.value)}
-              placeholder="Filtrar por título ou categoria..."
-            />
-            <button className="btn primary" onClick={carregarFilmes}>
-              Atualizar lista
-            </button>
-            {loading && <span className="loading">Carregando...</span>}
-          </div>
-
-          {mensagem && <p className="message">{mensagem}</p>}
-
-          <div className="films-grid">
-            {filmesFiltrados.length === 0 && !loading && (
-              <p>Nenhum filme cadastrado ainda.</p>
-            )}
-
-            {filmesFiltrados.map((filme) => (
-              <div key={filme.id} className="film-card">
-                {filme.posterUrl && (
-                  <div className="film-poster">
-                    <img
-                      src={filme.posterUrl}
-                      alt={`Pôster de ${filme.titulo}`}
-                    />
-                  </div>
-                )}
-
-                <h2>{filme.titulo}</h2>
-                <p className="film-meta">
-                  Categoria:{" "}
-                  <strong>{filme.categoria || "Sem categoria"}</strong>
-                </p>
-                <p className="film-meta">
-                  Ano: <strong>{filme.ano || "—"}</strong>
-                </p>
-                <p className="film-meta">
-                  Média de avaliação:{" "}
-                  <strong>
-                    {filme.mediaAvaliacao != null
-                      ? filme.mediaAvaliacao.toFixed(1)
-                      : "N/A"}
-                  </strong>
-                </p>
-
-                <div className="film-actions">
-                  <button
-                    className="btn small primary"
-                    onClick={() => handleAvaliar(filme.id)}
-                  >
-                    Avaliar filme
-                  </button>
-
-                  <button
-                    className="btn small secondary"
-                    onClick={() => handleComentar(filme.id)}
-                  >
-                    Adicionar comentário
-                  </button>
-
-                  <button
-                    className="btn small secondary"
-                    onClick={() => carregarAvaliacoesEComentarios(filme)}
-                  >
-                    Ver comentários
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Painel de comentários para usuário comum */}
-          <section
-            className="section comments-section"
-            ref={comentariosRef} // scroll aqui no usuário comum
-          >
-            <h2 className="section-title">Comentários do filme</h2>
-
-            {!filmeSelecionado && (
-              <p className="film-meta">
-                Clique em <strong>"Ver comentários"</strong> em algum filme
-                para ver as avaliações e comentários.
-              </p>
-            )}
-
-            {filmeSelecionado && (
-              <>
-                <p className="film-meta">
-                  Filme: <strong>{filmeSelecionado.titulo}</strong>
-                </p>
-
-                <div className="avaliacoes-list">
-                  {/* Avaliações com nota (podem ter comentário) */}
-                  {avaliacoes.map((av) => (
-                    <div key={`av-user-${av.id}`} className="avaliacao-card">
-                      {av.comentario && (
-                        <p className="avaliacao-comentario">
-                          {av.comentario}
-                        </p>
-                      )}
-                      <p className="avaliacao-nota">
-                        Nota: <strong>{av.nota}</strong> ⭐
-                      </p>
-                      <p className="avaliacao-meta">
-                        Por:{" "}
-                        <strong>
-                          {av.usuarioComum?.nome || av.usuarioComum?.email}
-                        </strong>{" "}
-                        em {av.dataAvaliacao}
-                      </p>
-                    </div>
-                  ))}
-
-                  {/* Comentários sem nota */}
-                  {comentarios.map((c) => (
-                    <div key={`c-user-${c.id}`} className="avaliacao-card">
-                      <p className="avaliacao-comentario">{c.texto}</p>
-                      <p className="avaliacao-meta">
-                        Por:{" "}
-                        <strong>
-                          {c.usuarioComum?.nome || c.usuarioComum?.email}
-                        </strong>{" "}
-                        em {c.dataComentario}
-                      </p>
-                    </div>
-                  ))}
-
-                  {avaliacoes.length === 0 &&
-                    comentarios.length === 0 &&
-                    !loading && (
-                      <p className="film-meta">
-                        Nenhuma avaliação/comentário registrado ainda para este
-                        filme.
-                      </p>
-                    )}
-                </div>
-              </>
-            )}
-          </section>
-        </section>
-      </div>
-    </div>
+    </>
   );
 }
 
