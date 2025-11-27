@@ -1,17 +1,8 @@
 package com.example.demo.controller;
 
-import com.example.demo.dto.AvaliacaoRequest;
-import com.example.demo.dto.AvaliacaoResponse;
-import com.example.demo.dto.FilmeRequest;
-import com.example.demo.dto.FilmeResponse;
-import com.example.demo.model.Avaliacao;
-import com.example.demo.model.Favorito;
-import com.example.demo.model.Filme;
-import com.example.demo.model.Usuario;
-import com.example.demo.repository.AvaliacaoRepository;
-import com.example.demo.repository.FavoritoRepository;
-import com.example.demo.repository.FilmeRepository;
-import com.example.demo.repository.UsuarioRepository;
+import com.example.demo.dto.*;
+import com.example.demo.model.*;
+import com.example.demo.repository.*;
 import com.example.demo.security.UsuarioDetails;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -34,16 +25,20 @@ public class FilmeController {
     private final AvaliacaoRepository avRepo;
     private final FavoritoRepository favRepo;
     private final UsuarioRepository usuarioRepo;
+    private final ComentarioRepository comentarioRepo;
 
     public FilmeController(FilmeRepository filmeRepo,
                            AvaliacaoRepository avRepo,
                            FavoritoRepository favRepo,
-                           UsuarioRepository usuarioRepo) {
+                           UsuarioRepository usuarioRepo,
+                           ComentarioRepository comentarioRepo) {
         this.filmeRepo = filmeRepo;
         this.avRepo = avRepo;
         this.favRepo = favRepo;
         this.usuarioRepo = usuarioRepo;
+        this.comentarioRepo = comentarioRepo;
     }
+
 
     // ----------------------------------------------------
     // LISTAR FILMES (ADMIN + COMUM)
@@ -68,8 +63,8 @@ public class FilmeController {
 
 
     // ----------------------------------------------------
-    // CRIAR AVALIAÇÃO (ADMIN + COMUM)
-    // ----------------------------------------------------
+// CRIAR / ATUALIZAR AVALIAÇÃO (nota) – ADMIN + COMUM
+// ----------------------------------------------------
     @PostMapping("/{id}/avaliacoes")
     public ResponseEntity<Avaliacao> avaliar(@PathVariable Long id,
                                              @RequestBody @Valid AvaliacaoRequest req) {
@@ -85,19 +80,20 @@ public class FilmeController {
                         "Filme não encontrado"
                 ));
 
-        Avaliacao a = new Avaliacao();
-        a.setId(null);
-        a.setNota(req.nota() != null ? req.nota().intValue() : null);
-        a.setComentario(req.comentario());
-        a.setDataAvaliacao(LocalDate.now());
-        a.setUsuarioComum(usuario);
-        a.setFilme(filme);
+        // Busca se já existe avaliação desse usuário para esse filme
+        var existenteOpt = avRepo.findByUsuarioComumIdAndFilmeId(usuario.getId(), id);
 
-        Avaliacao salvo = avRepo.save(a);
+        Avaliacao avaliacao = existenteOpt.orElseGet(Avaliacao::new);
+
+        avaliacao.setFilme(filme);
+        avaliacao.setUsuarioComum(usuario);
+        avaliacao.setNota(req.nota().intValue());   // sempre sobrescreve a nota
+        avaliacao.setDataAvaliacao(LocalDate.now());
+        // se sua entidade Avaliacao ainda tiver campo comentario, você pode deixar null ou manter o que já tem
+
+        Avaliacao salvo = avRepo.save(avaliacao);
         return ResponseEntity.ok(salvo);
     }
-
-
     // ----------------------------------------------------
     // LISTAR AVALIAÇÕES DE UM FILME (para painel ADMIN)
     // ----------------------------------------------------
@@ -178,5 +174,56 @@ public class FilmeController {
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
+
+    // ----------------------------------------------------
+// ADICIONAR COMENTÁRIO (ADMIN + COMUM)
+// ----------------------------------------------------
+    @PostMapping("/{id}/comentarios")
+    public ResponseEntity<ComentarioResponse> comentar(@PathVariable Long id,
+                                                       @RequestBody @Valid ComentarioRequest req) {
+
+        var principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        String email = ((UsuarioDetails) principal).getUsername();
+
+        Usuario usuario = usuarioRepo.findByEmail(email).orElseThrow();
+
+        Filme filme = filmeRepo.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Filme não encontrado"
+                ));
+
+        Comentario c = new Comentario();
+        c.setTexto(req.texto());
+        c.setDataComentario(LocalDate.now());
+        c.setUsuarioComum(usuario);
+        c.setFilme(filme);
+
+        Comentario salvo = comentarioRepo.save(c);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ComentarioResponse.fromEntity(salvo));
+    }
+
+    // ----------------------------------------------------
+// LISTAR COMENTÁRIOS DE UM FILME
+// ----------------------------------------------------
+    @GetMapping("/{id}/comentarios")
+    public ResponseEntity<List<ComentarioResponse>> listarComentarios(@PathVariable Long id) {
+
+        Filme filme = filmeRepo.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Filme não encontrado"
+                ));
+
+        List<ComentarioResponse> comentarios = comentarioRepo
+                .findByFilmeIdOrderByDataComentarioDesc(filme.getId())
+                .stream()
+                .map(ComentarioResponse::fromEntity)
+                .toList();
+
+        return ResponseEntity.ok(comentarios);
+    }
+
 
 }

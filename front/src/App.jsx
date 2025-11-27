@@ -35,9 +35,13 @@ function App() {
   const [novoAno, setNovoAno] = useState("");
   const [novoPosterUrl, setNovoPosterUrl] = useState("");
 
-  // painel de avaliações (admin e usuário comum)
+  // painel de avaliações (admin)
   const [filmeSelecionado, setFilmeSelecionado] = useState(null);
   const [avaliacoes, setAvaliacoes] = useState([]);
+
+  // painel de comentários (usuário comum)
+  const [filmeComentarios, setFilmeComentarios] = useState(null);
+  const [comentarios, setComentarios] = useState([]);
 
   // ----------------------------------------------------
   // Helpers
@@ -122,6 +126,35 @@ function App() {
     } catch (err) {
       console.error(err);
       setMensagem("Erro ao carregar avaliações do filme.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function carregarComentarios(filme) {
+    if (!token) return;
+
+    try {
+      setLoading(true);
+      setMensagem("");
+      setFilmeComentarios(filme);
+      setComentarios([]);
+
+      const res = await fetch(`${API_BASE}/filmes/${filme.id}/comentarios`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        throw new Error("Falha ao carregar comentários");
+      }
+
+      const data = await res.json();
+      setComentarios(data);
+    } catch (err) {
+      console.error(err);
+      setMensagem("Erro ao carregar comentários do filme.");
     } finally {
       setLoading(false);
     }
@@ -238,6 +271,8 @@ function App() {
     setFilmes([]);
     setAvaliacoes([]);
     setFilmeSelecionado(null);
+    setFilmeComentarios(null);
+    setComentarios([]);
     localStorage.removeItem("token");
     localStorage.removeItem("userEmail");
     localStorage.removeItem("userName");
@@ -249,7 +284,7 @@ function App() {
   // Ações de filme (usuário comum e admin)
   // ----------------------------------------------------
   async function handleAvaliar(filmeId) {
-    const notaStr = prompt("Informe a nota (0 a 5):");
+    const notaStr = prompt("Informe a nota de 0 a 5:");
     if (notaStr === null) return;
 
     const nota = Number(notaStr);
@@ -257,8 +292,6 @@ function App() {
       alert("Nota inválida. Digite um número de 0 a 5.");
       return;
     }
-
-    const comentario = prompt("Comentário sobre o filme:") || "";
 
     try {
       setLoading(true);
@@ -270,7 +303,7 @@ function App() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ nota, comentario }),
+        body: JSON.stringify({ nota }),
       });
 
       if (!res.ok) {
@@ -278,12 +311,50 @@ function App() {
       }
 
       await res.json();
-      setMensagem("Avaliação enviada com sucesso!");
+      setMensagem("Avaliação enviada/atualizada com sucesso!");
 
       carregarFilmes();
     } catch (err) {
       console.error(err);
       setMensagem("Erro ao avaliar o filme.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleComentar(filmeId) {
+    const texto = prompt("Digite seu comentário:");
+    if (!texto || !texto.trim()) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setMensagem("");
+
+      const res = await fetch(`${API_BASE}/filmes/${filmeId}/comentarios`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ texto }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Erro ao adicionar comentário");
+      }
+
+      await res.json();
+      setMensagem("Comentário adicionado com sucesso!");
+
+      // Se o painel de comentários estiver aberto para esse filme, recarrega
+      if (filmeComentarios && filmeComentarios.id === filmeId) {
+        carregarComentarios(filmeComentarios);
+      }
+    } catch (err) {
+      console.error(err);
+      setMensagem("Erro ao adicionar comentário.");
     } finally {
       setLoading(false);
     }
@@ -615,9 +686,12 @@ function App() {
                         <p className="avaliacao-nota">
                           Nota: <strong>{av.nota}</strong> ⭐
                         </p>
-                        <p className="avaliacao-comentario">
-                          {av.comentario || "Sem comentário"}
-                        </p>
+                        {/* se Avaliacao ainda tiver comentário, pode mostrar aqui */}
+                        {av.comentario && (
+                          <p className="avaliacao-comentario">
+                            {av.comentario}
+                          </p>
+                        )}
                         <p className="avaliacao-meta">
                           Por:{" "}
                           <strong>
@@ -721,7 +795,14 @@ function App() {
 
                   <button
                     className="btn small secondary"
-                    onClick={() => carregarAvaliacoes(filme)}
+                    onClick={() => handleComentar(filme.id)}
+                  >
+                    Adicionar comentário
+                  </button>
+
+                  <button
+                    className="btn small secondary"
+                    onClick={() => carregarComentarios(filme)}
                   >
                     Ver comentários
                   </button>
@@ -734,40 +815,35 @@ function App() {
           <section className="section comments-section">
             <h2 className="section-title">Comentários do filme</h2>
 
-            {!filmeSelecionado && (
+            {!filmeComentarios && (
               <p className="film-meta">
                 Clique em <strong>"Ver comentários"</strong> em algum filme
                 para ver as avaliações.
               </p>
             )}
 
-            {filmeSelecionado && (
+            {filmeComentarios && (
               <>
                 <p className="film-meta">
-                  Filme: <strong>{filmeSelecionado.titulo}</strong>
+                  Filme: <strong>{filmeComentarios.titulo}</strong>
                 </p>
 
                 <div className="avaliacoes-list">
-                  {avaliacoes.length === 0 && !loading && (
+                  {comentarios.length === 0 && !loading && (
                     <p className="film-meta">
-                      Nenhuma avaliação registrada ainda para este filme.
+                      Nenhum comentário registrado ainda para este filme.
                     </p>
                   )}
 
-                  {avaliacoes.map((av) => (
-                    <div key={av.id} className="avaliacao-card">
-                      <p className="avaliacao-nota">
-                        Nota: <strong>{av.nota}</strong> ⭐
-                      </p>
-                      <p className="avaliacao-comentario">
-                        {av.comentario || "Sem comentário"}
-                      </p>
+                  {comentarios.map((c) => (
+                    <div key={c.id} className="avaliacao-card">
+                      <p className="avaliacao-comentario">{c.texto}</p>
                       <p className="avaliacao-meta">
                         Por:{" "}
                         <strong>
-                          {av.usuarioComum?.nome || av.usuarioComum?.email}
+                          {c.usuarioComum?.nome || c.usuarioComum?.email}
                         </strong>{" "}
-                        em {av.dataAvaliacao}
+                        em {c.dataComentario}
                       </p>
                     </div>
                   ))}

@@ -11,7 +11,5 @@ public record AvaliacaoRequest(
         @NotNull(message = "Nota é obrigatória")
         @Min(value = 0, message = "Nota mínima é 0")
         @Max(value = 5, message = "Nota máxima é 5")
-        BigDecimal nota,
-
-        String comentario
+        BigDecimal nota
 ) {}
