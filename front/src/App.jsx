@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import "./App.css";
 
 const API_BASE = "http://localhost:8080";
@@ -10,6 +10,9 @@ function App() {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [tipoUsuario] = useState("COMUM"); // cadastro público sempre COMUM
+
+  // ref para scroll até a área de comentários
+  const comentariosRef = useRef(null);
 
   const [token, setToken] = useState(localStorage.getItem("token") || null);
   const [userEmail, setUserEmail] = useState(
@@ -35,12 +38,9 @@ function App() {
   const [novoAno, setNovoAno] = useState("");
   const [novoPosterUrl, setNovoPosterUrl] = useState("");
 
-  // painel de avaliações (admin)
+  // painel de avaliações/comentários (admin e usuário comum)
   const [filmeSelecionado, setFilmeSelecionado] = useState(null);
   const [avaliacoes, setAvaliacoes] = useState([]);
-
-  // painel de comentários (usuário comum)
-  const [filmeComentarios, setFilmeComentarios] = useState(null);
   const [comentarios, setComentarios] = useState([]);
 
   // ----------------------------------------------------
@@ -102,7 +102,8 @@ function App() {
     }
   }
 
-  async function carregarAvaliacoes(filme) {
+  // carrega avaliações (notas) + comentários em um único painel
+  async function carregarAvaliacoesEComentarios(filme) {
     if (!token) return;
 
     try {
@@ -110,48 +111,33 @@ function App() {
       setMensagem("");
       setFilmeSelecionado(filme);
       setAvaliacoes([]);
-
-      const res = await fetch(`${API_BASE}/filmes/${filme.id}/avaliacoes`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!res.ok) {
-        throw new Error("Falha ao carregar avaliações");
-      }
-
-      const data = await res.json();
-      setAvaliacoes(data);
-    } catch (err) {
-      console.error(err);
-      setMensagem("Erro ao carregar avaliações do filme.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function carregarComentarios(filme) {
-    if (!token) return;
-
-    try {
-      setLoading(true);
-      setMensagem("");
-      setFilmeComentarios(filme);
       setComentarios([]);
 
-      const res = await fetch(`${API_BASE}/filmes/${filme.id}/comentarios`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const [resA, resC] = await Promise.all([
+        fetch(`${API_BASE}/filmes/${filme.id}/avaliacoes`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`${API_BASE}/filmes/${filme.id}/comentarios`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
 
-      if (!res.ok) {
-        throw new Error("Falha ao carregar comentários");
+      if (!resA.ok || !resC.ok) {
+        throw new Error("Falha ao carregar avaliações/comentários");
       }
 
-      const data = await res.json();
-      setComentarios(data);
+      const dataA = await resA.json();
+      const dataC = await resC.json();
+
+      setAvaliacoes(dataA);
+      setComentarios(dataC);
+
+      // scroll até a área de comentários
+      setTimeout(() => {
+        if (comentariosRef.current) {
+          comentariosRef.current.scrollIntoView({ behavior: "smooth" });
+        }
+      }, 150);
     } catch (err) {
       console.error(err);
       setMensagem("Erro ao carregar comentários do filme.");
@@ -270,9 +256,8 @@ function App() {
     setUserRole(null);
     setFilmes([]);
     setAvaliacoes([]);
-    setFilmeSelecionado(null);
-    setFilmeComentarios(null);
     setComentarios([]);
+    setFilmeSelecionado(null);
     localStorage.removeItem("token");
     localStorage.removeItem("userEmail");
     localStorage.removeItem("userName");
@@ -313,7 +298,13 @@ function App() {
       await res.json();
       setMensagem("Avaliação enviada/atualizada com sucesso!");
 
+      // recarrega filmes para atualizar média
       carregarFilmes();
+
+      // se o painel estiver aberto para esse filme, recarrega notas/comentários
+      if (filmeSelecionado && filmeSelecionado.id === filmeId) {
+        carregarAvaliacoesEComentarios(filmeSelecionado);
+      }
     } catch (err) {
       console.error(err);
       setMensagem("Erro ao avaliar o filme.");
@@ -348,9 +339,9 @@ function App() {
       await res.json();
       setMensagem("Comentário adicionado com sucesso!");
 
-      // Se o painel de comentários estiver aberto para esse filme, recarrega
-      if (filmeComentarios && filmeComentarios.id === filmeId) {
-        carregarComentarios(filmeComentarios);
+      // se o painel estiver aberto para esse filme, recarrega tudo
+      if (filmeSelecionado && filmeSelecionado.id === filmeId) {
+        carregarAvaliacoesEComentarios(filmeSelecionado);
       }
     } catch (err) {
       console.error(err);
@@ -650,9 +641,11 @@ function App() {
                         </button>
                         <button
                           className="btn small secondary"
-                          onClick={() => carregarAvaliacoes(filme)}
+                          onClick={() =>
+                            carregarAvaliacoesEComentarios(filme)
+                          }
                         >
-                          Ver avaliações
+                          Ver comentários
                         </button>
                       </div>
                     </div>
@@ -661,11 +654,14 @@ function App() {
               </section>
             </div>
 
-            <aside className="dashboard-side">
-              <h2 className="section-title">Avaliações</h2>
+            <aside
+              className="dashboard-side"
+              ref={comentariosRef} // scroll aqui no admin
+            >
+              <h2 className="section-title">Comentários do filme</h2>
               {!filmeSelecionado && (
                 <p className="film-meta">
-                  Selecione um filme em &quot;Ver avaliações&quot;.
+                  Selecione um filme em &quot;Ver comentários&quot;.
                 </p>
               )}
 
@@ -675,23 +671,17 @@ function App() {
                     Filme: <strong>{filmeSelecionado.titulo}</strong>
                   </p>
                   <div className="avaliacoes-list">
-                    {avaliacoes.length === 0 && !loading && (
-                      <p className="film-meta">
-                        Nenhuma avaliação registrada ainda.
-                      </p>
-                    )}
-
+                    {/* Avaliações com nota */}
                     {avaliacoes.map((av) => (
-                      <div key={av.id} className="avaliacao-card">
-                        <p className="avaliacao-nota">
-                          Nota: <strong>{av.nota}</strong> ⭐
-                        </p>
-                        {/* se Avaliacao ainda tiver comentário, pode mostrar aqui */}
+                      <div key={`av-${av.id}`} className="avaliacao-card">
                         {av.comentario && (
                           <p className="avaliacao-comentario">
                             {av.comentario}
                           </p>
                         )}
+                        <p className="avaliacao-nota">
+                          Nota: <strong>{av.nota}</strong> ⭐
+                        </p>
                         <p className="avaliacao-meta">
                           Por:{" "}
                           <strong>
@@ -701,6 +691,28 @@ function App() {
                         </p>
                       </div>
                     ))}
+
+                    {/* Comentários sem nota */}
+                    {comentarios.map((c) => (
+                      <div key={`c-${c.id}`} className="avaliacao-card">
+                        <p className="avaliacao-comentario">{c.texto}</p>
+                        <p className="avaliacao-meta">
+                          Por:{" "}
+                          <strong>
+                            {c.usuarioComum?.nome || c.usuarioComum?.email}
+                          </strong>{" "}
+                          em {c.dataComentario}
+                        </p>
+                      </div>
+                    ))}
+
+                    {avaliacoes.length === 0 &&
+                      comentarios.length === 0 &&
+                      !loading && (
+                        <p className="film-meta">
+                          Nenhuma avaliação/comentário registrado ainda.
+                        </p>
+                      )}
                   </div>
                 </>
               )}
@@ -802,7 +814,7 @@ function App() {
 
                   <button
                     className="btn small secondary"
-                    onClick={() => carregarComentarios(filme)}
+                    onClick={() => carregarAvaliacoesEComentarios(filme)}
                   >
                     Ver comentários
                   </button>
@@ -812,31 +824,50 @@ function App() {
           </div>
 
           {/* Painel de comentários para usuário comum */}
-          <section className="section comments-section">
+          <section
+            className="section comments-section"
+            ref={comentariosRef} // scroll aqui no usuário comum
+          >
             <h2 className="section-title">Comentários do filme</h2>
 
-            {!filmeComentarios && (
+            {!filmeSelecionado && (
               <p className="film-meta">
                 Clique em <strong>"Ver comentários"</strong> em algum filme
-                para ver as avaliações.
+                para ver as avaliações e comentários.
               </p>
             )}
 
-            {filmeComentarios && (
+            {filmeSelecionado && (
               <>
                 <p className="film-meta">
-                  Filme: <strong>{filmeComentarios.titulo}</strong>
+                  Filme: <strong>{filmeSelecionado.titulo}</strong>
                 </p>
 
                 <div className="avaliacoes-list">
-                  {comentarios.length === 0 && !loading && (
-                    <p className="film-meta">
-                      Nenhum comentário registrado ainda para este filme.
-                    </p>
-                  )}
+                  {/* Avaliações com nota (podem ter comentário) */}
+                  {avaliacoes.map((av) => (
+                    <div key={`av-user-${av.id}`} className="avaliacao-card">
+                      {av.comentario && (
+                        <p className="avaliacao-comentario">
+                          {av.comentario}
+                        </p>
+                      )}
+                      <p className="avaliacao-nota">
+                        Nota: <strong>{av.nota}</strong> ⭐
+                      </p>
+                      <p className="avaliacao-meta">
+                        Por:{" "}
+                        <strong>
+                          {av.usuarioComum?.nome || av.usuarioComum?.email}
+                        </strong>{" "}
+                        em {av.dataAvaliacao}
+                      </p>
+                    </div>
+                  ))}
 
+                  {/* Comentários sem nota */}
                   {comentarios.map((c) => (
-                    <div key={c.id} className="avaliacao-card">
+                    <div key={`c-user-${c.id}`} className="avaliacao-card">
                       <p className="avaliacao-comentario">{c.texto}</p>
                       <p className="avaliacao-meta">
                         Por:{" "}
@@ -847,6 +878,15 @@ function App() {
                       </p>
                     </div>
                   ))}
+
+                  {avaliacoes.length === 0 &&
+                    comentarios.length === 0 &&
+                    !loading && (
+                      <p className="film-meta">
+                        Nenhuma avaliação/comentário registrado ainda para este
+                        filme.
+                      </p>
+                    )}
                 </div>
               </>
             )}

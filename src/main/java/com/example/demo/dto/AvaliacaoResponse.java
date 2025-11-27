@@ -5,7 +5,7 @@ import com.example.demo.model.Usuario;
 
 public record AvaliacaoResponse(
         Long id,
-        int nota,
+        Integer nota,       // <- era int
         String comentario,
         String dataAvaliacao,
         UsuarioResumo usuarioComum
@@ -15,15 +15,13 @@ public record AvaliacaoResponse(
 
         return new AvaliacaoResponse(
                 av.getId(),
-                av.getNota(),
+                av.getNota(),                 // pode ser null
                 av.getComentario(),
                 av.getDataAvaliacao().toString(),
-                new UsuarioResumo(
-                        u.getNome(),
-                        u.getEmail()
-                )
+                new UsuarioResumo(u.getNome(), u.getEmail())
         );
     }
 
     public record UsuarioResumo(String nome, String email) { }
 }
+

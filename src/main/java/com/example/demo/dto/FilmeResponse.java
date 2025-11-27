@@ -6,7 +6,8 @@ public record FilmeResponse(
         String categoria,
         Integer ano,
         String posterUrl,
+        Double mediaAvaliacao,
         String adminNome,
         String adminEmail,
-        String tipoUsuario
+        String adminTipo
 ) {}
